@@ -235,6 +235,14 @@
     .bar { background: var(--bg); border-radius: 8px; height: 10px; overflow: hidden; margin-top: 6px; }
     .bar-fill { height: 100%; background: var(--primary); border-radius: 8px; transition: width .4s; }
 
+    /* 达标天数环形进度 */
+    .ring-wrap { display: flex; align-items: center; gap: 14px; }
+    .ring { width: 66px; height: 66px; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center;
+      background: conic-gradient(var(--primary) calc(var(--p, 0) * 1%), #ececf0 0); font-weight: 700; font-size: 15px; flex-shrink: 0; }
+    .ring::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: var(--card); }
+    .ring span { position: relative; z-index: 1; }
+    .modal-overlay[aria-hidden="true"] { display: none; }
+
     /* Trend chart */
     .chart { width: 100%; height: 160px; }
     .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
@@ -297,6 +305,7 @@
             <div class="card-sub">完成一项打勾，进度一目了然（每天自动重置）</div>
             <div style="display:flex;gap:8px;margin-bottom:10px">
               <button class="btn btn-small btn-secondary" onclick="generateTodayPlan()">🤖 按规划生成今日任务</button>
+              <button class="btn btn-small btn-secondary" onclick="copyYesterdayTasks()">📋 复制昨天任务</button>
             </div>
             <div id="daily-task-list"></div>
             <div class="form-row" style="margin-top:12px">
@@ -518,6 +527,7 @@
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <button class="btn btn-small btn-secondary" onclick="exportBackup()">⬇️ 导出备份</button>
         <button class="btn btn-small btn-secondary" onclick="document.getElementById('import-file').click()">⬆️ 导入备份</button>
+        <button class="btn btn-small btn-secondary" onclick="exportStudyCSV()">📊 学习记录CSV</button>
         <input type="file" id="import-file" accept="application/json" style="display:none" onchange="importBackup(this)">
       </div>
       <div style="margin:10px 0 6px;font-weight:600;font-size:14px">首页模块顺序（拖拽调整）</div>
@@ -1066,7 +1076,27 @@ function generateTodayPlan() {
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
 }
 function updateDailySnapshot() {
-  state.dailyHistory[todayStr()] = state.tasks.filter(t => t.done).map(t => t.text);
+  state.dailyHistory[todayStr()] = state.tasks.map(t => ({ text: t.text, done: !!t.done }));
+}
+// 兼容旧数据（历史里存的是字符串），统一返回 {text, done}
+function histTasks(ds) {
+  const arr = state.dailyHistory[ds] || [];
+  return arr.map(t => (typeof t === 'string' ? { text: t, done: true } : { text: t.text, done: !!t.done }));
+}
+function copyYesterdayTasks() {
+  const y = new Date(Date.now() - 86400000);
+  const ys = dateStr(y);
+  const src = histTasks(ys);
+  if (!src.length) { toast('昨天没有任务可复制'); return; }
+  const exist = new Set(state.tasks.map(t => t.text));
+  let added = 0;
+  src.forEach(t => {
+    if (exist.has(t.text)) return; // 避免重复
+    state.tasks.push({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text: t.text, done: false });
+    added++;
+  });
+  saveState(); schedulePush(); renderDaily();
+  toast(added ? `已复制昨天 ${added} 条任务（未完成）` : '昨天的任务今天都已有');
 }
 function renderDaily() {
   const list = document.getElementById('daily-task-list');
@@ -1145,8 +1175,8 @@ function renderCalendar() {
   const todayS = todayStr();
   for (let d=1; d<=days; d++) {
     const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const tasks = state.dailyHistory[ds] || [];
-    const th = tasks.slice(0,3).map(t => `<div class="cal-task">${escapeHtml(t)}</div>`).join('') + (tasks.length>3 ? '<div class="cal-task">…</div>' : '');
+    const tasks = histTasks(ds);
+    const th = tasks.slice(0,3).map(t => `<div class="cal-task">${escapeHtml(t.text)}</div>`).join('') + (tasks.length>3 ? '<div class="cal-task">…</div>' : '');
     const isToday = ds === todayS, isSel = ds === selectedDate;
     html += `<div class="cal-cell ${isToday?'cal-today':''} ${isSel?'cal-sel':''}" onclick="selectDate('${ds}')"><div class="cal-day">${d}</div>${th}</div>`;
   }
@@ -1157,9 +1187,10 @@ function renderCalendar() {
 function renderCalendarDetail() {
   const detail = document.getElementById('calendar-detail');
   if (!detail) return;
-  const dt = state.dailyHistory[selectedDate] || [];
-  let html = `<div class="card-sub">${selectedDate} 完成 ${dt.length} 项</div>`;
-  if (dt.length) html += dt.map(t => `<div style="padding:6px 0;border-bottom:1px solid #eee">${escapeHtml(t)}</div>`).join('');
+  const dt = histTasks(selectedDate);
+  const doneCnt = dt.filter(t => t.done).length;
+  let html = `<div class="card-sub">${selectedDate} 完成 ${doneCnt}/${dt.length} 项</div>`;
+  if (dt.length) html += dt.map(t => `<div style="padding:6px 0;border-bottom:1px solid #eee">${escapeHtml(t.text)}</div>`).join('');
   else html += '<div class="empty">当天无记录</div>';
   detail.innerHTML = html;
 }
@@ -2243,6 +2274,7 @@ function openSettings() {
   document.getElementById('set-sync-room').value = localStorage.getItem('syncRoom') || '';
   renderNavOrderEditor();
   document.getElementById('settings-modal').classList.add('show');
+  focusModalFirst('settings-modal');
 }
 function closeSettings() { document.getElementById('settings-modal').classList.remove('show'); }
 function saveSettings() {
@@ -2304,6 +2336,22 @@ function exportBackup() {
   } catch (e) {
     alert('导出失败：' + e.message);
   }
+}
+function exportStudyCSV() {
+  try {
+    const rows = [['日期', '科目', '分钟', '是否补做', '是否熬夜']];
+    (state.studyRecords || []).slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(r => {
+      rows.push([r.date, subjectConfig[r.subject] ? subjectConfig[r.subject].name : r.subject, r.minutes, r.makeup ? '是' : '否', r.late ? '是' : '否']);
+    });
+    const csv = '﻿' + rows.map(row => row.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `headup-study-${todayStr()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('已导出学习记录 CSV');
+  } catch (e) { alert('导出失败：' + e.message); }
 }
 function importBackup(input) {
   const file = input.files && input.files[0];
@@ -2522,6 +2570,7 @@ function openMakeup(type, key, sub) {
   }
   document.getElementById('makeup-minutes').value = 30;
   document.getElementById('makeup-modal').classList.add('show');
+  focusModalFirst('makeup-modal');
 }
 function setMakeupMin(v) { const el = document.getElementById('makeup-minutes'); if (el) el.value = v; }
 function closeMakeup() { const m = document.getElementById('makeup-modal'); if (m) m.classList.remove('show'); _makeup = null; }
@@ -2557,6 +2606,47 @@ function fabMakeup() {
   const w = outstandingWeeklyDeficits()[0];
   if (w) { openMakeup('weekly', w.week, w.items[0].sub); return; }
   toast('暂时没有欠账，继续保持 🎉');
+}
+// 某计划周（第 pw 周）内，达到当日目标的天数
+function weekMetDays(pw) {
+  const start = new Date(PLAN.examStart + 'T00:00:00');
+  start.setDate(start.getDate() + (pw - 1) * 7);
+  const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
+  const byDay = {};
+  (state.studyRecords || []).forEach(r => {
+    const d = new Date(r.date + 'T00:00:00');
+    if (d >= start && d <= end && !r.late) byDay[r.date] = (byDay[r.date] || 0) + (r.minutes || 0);
+  });
+  let n = 0;
+  const cur = new Date(); cur.setHours(0,0,0,0);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i);
+    if (d > cur) break;
+    const ds = dateStr(d);
+    if ((byDay[ds] || 0) >= dayGoal(ds)) n++;
+  }
+  return n;
+}
+// 连续「周达标」周数（从已结束的最近一周往前数）
+function weeklyStreak() {
+  const rd = state.settings.rewardDays || 5;
+  const curWk = currentWeekNum();
+  let streak = 0;
+  for (let pw = curWk - 1; pw >= 1; pw--) {
+    if (weekMetDays(pw) >= rd) streak++; else break;
+  }
+  return streak;
+}
+// 累计欠账最多的科目（薄弱科目预警）
+function weakSubjects() {
+  const totals = {};
+  Object.keys(state.deficits.weekly || {}).forEach(wk => {
+    const w = state.deficits.weekly[wk];
+    ['math','cs408','english','politics'].forEach(s => { if (w[s]) totals[s] = (totals[s] || 0) + w[s]; });
+  });
+  return ['math','cs408','english','politics'].filter(s => totals[s] > 0)
+    .map(s => ({ sub: s, mins: totals[s] }))
+    .sort((a, b) => b.mins - a.mins);
 }
 // 每周达标首次达成时，把奖励分钟存入“爱好时间银行”（每周只存一次）
 function creditHobbyBank() {
@@ -2724,7 +2814,18 @@ function renderDashboard() {
       </div>
     </div>`;
   }
-  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + todoCard + sleepStreakCard + ruleCard + phaseTl + `
+  // 本周达标天数环形进度
+  const metDays = weekGoalMetDays();
+  const rd = state.settings.rewardDays || 5;
+  const ringPct = Math.min(100, Math.round(metDays / rd * 100));
+  const ringHtml = `<div class="card">
+    <div class="card-title">🔥 本周达标天数</div>
+    <div class="ring-wrap">
+      <div class="ring" style="--p:${ringPct}"><span>${metDays}/${rd}</span></div>
+      <div class="card-sub">还差 <b>${Math.max(0, rd - metDays)}</b> 天即可解锁爱好奖励<br>近7天达到每日目标的次数</div>
+    </div>
+  </div>`;
+  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + ruleCard + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
       <div class="dash-card"><div class="dash-num">${fmtMin(todayStudy)}</div><div class="dash-label">今日学习</div></div>
@@ -2889,6 +2990,28 @@ function renderExamOverview() {
     </div>`;
   }
 
+  // 薄弱科目预警（累计欠账最多的科目）
+  const weak = weakSubjects();
+  let weakHtml = '';
+  if (weak.length) {
+    const items = weak.slice(0, 3).map(w => `${subjectConfig[w.sub].icon} ${subjectConfig[w.sub].name}（欠 ${fmtMin(w.mins)}）`).join(' · ');
+    weakHtml = `<div class="card" style="border-left:4px solid #f3832c;background:linear-gradient(135deg,#fff7ef,#fff)">
+      <div class="card-title">🎯 薄弱科目预警</div>
+      <div class="card-sub">累计欠账最多：<b>${items}</b><br>优先补这些科目，别让欠账越滚越大。</div>
+    </div>`;
+  }
+
+  // 周达标连胜
+  const streak = weeklyStreak();
+  const rd2 = state.settings.rewardDays || 5;
+  const streakHtml = `<div class="card">
+    <div class="card-title">🔥 周达标连胜</div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="ring" style="--p:${Math.min(100, Math.round(streak * 100 / Math.max(1, rd2)))}"><span>${streak}</span></div>
+      <div class="card-sub">已连续 <b>${streak}</b> 周达到奖励天数（≥${rd2} 天）<br>${streak > 0 ? '保持节奏，奖励自动解锁 💪' : '本周还没达标，加油冲一波！'}</div>
+    </div>
+  </div>`;
+
   // 看课进度（张宇 / 王道）
   const courseCard = renderCourseTrackerHtml();
 
@@ -2928,7 +3051,7 @@ function renderExamOverview() {
     </div>`;
 
   el.innerHTML = phaseBanner + renderPhaseTimeline() + weekPlanCard + subjectGridHtml
-    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + deficitCard + courseCard + msCard + `
+    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + deficitCard + weakHtml + streakHtml + courseCard + msCard + `
     <div class="card">
       <div class="card-title">📈 近14天学习时长</div>
       <canvas id="exam-trend" class="chart"></canvas>
@@ -3143,6 +3266,7 @@ function openWeeklyReview() {
   document.getElementById('rv-c2').checked = !!(data.checks && data.checks.c2);
   document.getElementById('rv-c3').checked = !!(data.checks && data.checks.c3);
   document.getElementById('review-modal').classList.add('show');
+  focusModalFirst('review-modal');
 }
 function saveWeeklyReview() {
   const wk = getPlanStatus().weekNum;
@@ -3187,6 +3311,35 @@ document.addEventListener('click', e => {
   const sheet = document.getElementById('fab-sheet');
   if (sheet && sheet.classList.contains('show') && !sheet.contains(e.target) && e.target.id !== 'fab') sheet.classList.remove('show');
 });
+// 弹窗：Esc 关闭 + Tab 焦点锁定在当前弹窗内（减少误操作与界面跳动）
+const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal'];
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    let closed = false;
+    _MODAL_IDS.concat(['lightbox']).forEach(id => {
+      const m = document.getElementById(id);
+      if (m && m.classList.contains('show')) { m.classList.remove('show'); closed = true; }
+    });
+    if (closed) e.preventDefault();
+    return;
+  }
+  if (e.key === 'Tab') {
+    const open = _MODAL_IDS.map(id => document.getElementById(id)).find(m => m && m.classList.contains('show'));
+    if (!open) return;
+    const f = [...open.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+function focusModalFirst(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  const f = [...m.querySelectorAll('input, select, textarea, button')].filter(el => el.offsetParent !== null && !el.disabled);
+  if (f.length) setTimeout(() => f[0].focus(), 30);
+}
+
 function fabLogStudy() {
   document.getElementById('fab-sheet').classList.remove('show');
   setView('life');
