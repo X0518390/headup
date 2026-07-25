@@ -216,10 +216,13 @@
       --border: #3a3a3c; --primary-light: #3d2f22; --shadow: 0 2px 12px rgba(0,0,0,.4);
     }
     [data-theme="dark"] .item-img { background: #444; }
-    /* 夜间模式：覆盖卡片中写死的浅色/橙色背景（内联 style 需要 !important） */
-    [data-theme="dark"] .card[style*="linear-gradient(135deg,#fff7ef"] { background: linear-gradient(135deg,#3d2f22,#2c2c2e) !important; }
-    [data-theme="dark"] .card[style*="linear-gradient(135deg,#fff5f5"] { background: linear-gradient(135deg,#4a2520,#2c2c2e) !important; }
-    [data-theme="dark"] .card[style*="linear-gradient(135deg,#f3832c"] { background: linear-gradient(135deg,#a85510,#c2691e) !important; color: #ffffff !important; }
+    /* 夜间模式：用专门类替代写死的浅色/橙色背景卡片（不再依赖内联 style 子串匹配） */
+    .card-rec  { background: linear-gradient(135deg,#fff7ef,#fff); }
+    .card-warn { background: linear-gradient(135deg,#fff5f5,#fff); }
+    .card-hero { background: linear-gradient(135deg,#f3832c,#ff9a4d); color:#fff; box-shadow:0 4px 16px rgba(243,131,44,.35); }
+    [data-theme="dark"] .card-rec  { background: linear-gradient(135deg,#3d2f22,#2c2c2e); }
+    [data-theme="dark"] .card-warn { background: linear-gradient(135deg,#4a2520,#2c2c2e); }
+    [data-theme="dark"] .card-hero { background: linear-gradient(135deg,#a85510,#c2691e); color:#fff; box-shadow:0 4px 16px rgba(168,85,16,.4); }
     [data-theme="dark"] .alert-banner { background: #4a2520 !important; color: #ffb4a8 !important; }
 
     /* 字号缩放：作用于内容和侧栏，%overflow-x 可横向滚动，不会裁切 */
@@ -3242,7 +3245,7 @@ function renderDashboard() {
   const st = getPlanStatus();
   const up = st.upcoming;
   const heroCard = `
-    <div class="card" style="background:linear-gradient(135deg,#f3832c,#ff9a4d);color:#fff;box-shadow:0 4px 16px rgba(243,131,44,.35)">
+    <div class="card card-hero">
       <div style="font-size:13px;opacity:.92">📍 ${PLAN.school}</div>
       <div style="font-size:14px;margin-top:6px;opacity:.95">当前阶段：<b>${st.phase.name}</b> · 第 <b>${st.weekNum}</b> 周（${weekRange(st.weekNum)}）</div>
       <div style="font-size:13px;margin-top:6px;opacity:.95">🎯 下一节点：<b>${up.name}</b> 还有 <b>${daysUntil(up.date)}</b> 天（${up.date}）</div>
@@ -3256,7 +3259,7 @@ function renderDashboard() {
       </div>
     </div>`;
   const recCard = `
-    <div class="card" style="border-left:4px solid #f3832c;background:linear-gradient(135deg,#fff7ef,#fff)">
+    <div class="card card-rec" style="border-left:4px solid #f3832c">
       <div class="card-title">🧭 现在该做</div>
       <div style="font-size:15px;font-weight:600;line-height:1.6;margin:2px 0 10px">${recommendNow()}</div>
       <div style="font-size:12px;color:var(--text-secondary)">🌙 距就寝还有 <b>${bedtimeCountdown()}</b>${isAfterBedtime()?'（已超时，该睡了）':''}</div>
@@ -3283,7 +3286,7 @@ function renderDashboard() {
   const dDef = latestDailyDeficit();
   let dDefHtml = '';
   if (dDef) {
-    dDefHtml = `<div class="card" style="border-left:4px solid #e74c3c;background:linear-gradient(135deg,#fff5f5,#fff)">
+    dDefHtml = `<div class="card card-warn" style="border-left:4px solid #e74c3c">
       <div class="card-title">⚠️ 昨日学习目标未完成</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         <span class="card-sub">${dDef.date} 还差 <b class="status-bad">${fmtMin(dDef.short)}</b>（目标 ${fmtMin(dayGoal(dDef.date))}）</span>
@@ -3470,7 +3473,7 @@ function renderExamOverview() {
       return `<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--border)">
         <div style="font-weight:600;margin-bottom:2px">📅 第${d.week}周（${weekRange(d.week)}）</div>${rows}</div>`;
     }).join('');
-    deficitCard = `<div class="card" style="border-left:4px solid #e74c3c;background:linear-gradient(135deg,#fff5f5,#fff)">
+    deficitCard = `<div class="card card-warn" style="border-left:4px solid #e74c3c">
       <div class="card-title">⚠️ 上周目标未完成（欠账待补）</div>
       <div class="card-sub">每周预算没填满的科目会记成欠账，补做对应科目即可清零。</div>
       ${blocks}
@@ -3482,7 +3485,7 @@ function renderExamOverview() {
   let weakHtml = '';
   if (weak.length) {
     const items = weak.slice(0, 3).map(w => `${subjectConfig[w.sub].icon} ${subjectConfig[w.sub].name}（欠 ${fmtMin(w.mins)}）`).join(' · ');
-    weakHtml = `<div class="card" style="border-left:4px solid #f3832c;background:linear-gradient(135deg,#fff7ef,#fff)">
+    weakHtml = `<div class="card card-rec" style="border-left:4px solid #f3832c">
       <div class="card-title">🎯 薄弱科目预警</div>
       <div class="card-sub">累计欠账最多：<b>${items}</b><br>优先补这些科目，别让欠账越滚越大。</div>
     </div>`;
@@ -3544,7 +3547,7 @@ function renderExamOverview() {
         <div style="display:flex;gap:4px;font-size:9px;color:var(--text-secondary)"><span style="flex:1;text-align:center">-3</span><span style="flex:1;text-align:center">-2</span><span style="flex:1;text-align:center">-1</span><span style="flex:1;text-align:center">上周</span></div>
       </div>`;
     }).join('');
-    weakTrendHtml = `<div class="card" style="border-left:4px solid #f3832c;background:linear-gradient(135deg,#fff7ef,#fff)">
+    weakTrendHtml = `<div class="card card-rec" style="border-left:4px solid #f3832c">
       <div class="card-title">📊 近4周每科投入</div>
       <div class="card-sub">每根柱子=那周实际/预算，绿=达标 橙=欠账</div>
       ${rows}
@@ -3568,7 +3571,7 @@ function renderExamOverview() {
       ${msRows}
     </div>`;
 
-  const phaseBanner = `<div class="card" style="background:linear-gradient(135deg,#f3832c,#ff9a4d);color:#fff">
+  const phaseBanner = `<div class="card card-hero">
       <div style="text-align:center;padding:8px 0">
         <div style="font-size:40px;font-weight:800">${examDays}</div>
         <div style="opacity:.95">天后考研 · ${state.settings.examDate}</div>
