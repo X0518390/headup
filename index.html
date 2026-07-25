@@ -12,17 +12,20 @@
   <style>
     :root {
       --primary: #f3832c;
+      --primary-dark: #e06d15;
       --primary-light: #fdeede;
       --bg: #f5f5f7;
       --card: #ffffff;
       --text: #1c1c1e;
       --text-secondary: #6c6c70;
-      --border: #e5e5ea;
+      --border: #e8e8ed;
       --radius: 14px;
+      --radius-lg: 18px;
       --shadow: 0 2px 12px rgba(0,0,0,0.06);
+      --shadow-sm: 0 1px 4px rgba(0,0,0,0.05);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); }
+    html, body { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
     body { display: flex; overflow: hidden; }
     button, input, textarea, select { font-family: inherit; font-size: 15px; }
 
@@ -39,7 +42,8 @@
     .header { height: 56px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-weight: 600; flex-shrink: 0; }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .menu-btn { display: none; background: none; border: none; font-size: 22px; color: var(--text); }
-    .content { flex: 1; overflow-y: auto; padding: 16px; overscroll-behavior-y: contain; }
+    .content { flex: 1; overflow-y: auto; padding: 18px; overscroll-behavior-y: contain; }
+    @media (min-width: 768px) { .content { padding: 22px 28px; max-width: 980px; margin: 0 auto; width: 100%; } }
     .ptr-indicator { text-align: center; font-size: 13px; color: var(--text-secondary); padding: 0; height: 0; overflow: hidden; transition: height .15s ease, opacity .15s; opacity: 0; margin-top: -16px; margin-bottom: 0; }
     .ptr-indicator.ptr-active { opacity: 1; }
     .ptr-indicator.ptr-ready { color: var(--primary); font-weight: 600; }
@@ -54,14 +58,16 @@
       .menu-btn { display: block; }
     }
 
-    .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 16px; }
-    .card-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
-    .card-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+    .card { background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+    .card-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; letter-spacing: .2px; }
+    .card-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
 
-    .btn { border: none; border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; transition: .2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary { background: var(--primary); color: white; }
-    .btn-primary:active { opacity: .9; }
+    .btn { border: none; border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; transition: transform .08s, background .2s, box-shadow .2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(243,131,44,.28); }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:active { opacity: .9; transform: scale(.97); }
     .btn-secondary { background: var(--bg); color: var(--text); }
+    .btn-secondary:hover { background: #ececf0; }
     .btn-danger { background: #fee2e2; color: #991b1b; }
     .btn-small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
     .btn-block { width: 100%; }
@@ -70,13 +76,16 @@
     .task-item.done { background: var(--primary-light); }
     .task-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
     .task-check.checked { background: var(--primary); color: white; }
-    .task-text { flex: 1; }
+    .task-text { flex: 1; cursor: pointer; border-radius: 6px; padding: 2px 4px; transition: background .15s; }
+    .task-text:hover { background: rgba(0,0,0,.04); }
     .task-text.done { text-decoration: line-through; color: var(--text-secondary); }
+    .task-edit-input { flex: 1; font: inherit; padding: 6px 8px; border: 1.5px solid var(--primary); border-radius: 8px; background: #fff; color: var(--text); outline: none; }
     .task-del { color: #999; font-size: 18px; cursor: pointer; padding: 4px; }
 
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
-    .stat-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-    .stat-num { font-size: 28px; font-weight: 700; color: var(--primary); }
+    .stat-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
+    .stat-num { font-size: 28px; font-weight: 700; color: var(--primary); letter-spacing: .5px; }
     .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 
     .form-row { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -85,8 +94,9 @@
     .input:focus, .textarea:focus { border-color: var(--primary); }
 
     .subject-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .subject-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); cursor: pointer; text-align: center; transition: .2s; }
-    .subject-card:hover { transform: translateY(-2px); }
+    .subject-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); cursor: pointer; text-align: center; transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
+    .subject-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
+    .subject-card:active { transform: translateY(0); }
     .subject-icon { font-size: 32px; margin-bottom: 8px; }
     .subject-name { font-weight: 600; }
 
@@ -98,6 +108,10 @@
     .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
     .item-title { font-weight: 600; flex: 1; }
     .item-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; white-space: pre-wrap; }
+    .resource-card { background: var(--card); border-left: 3px solid var(--primary); box-shadow: var(--shadow); }
+    .resource-open-btn { display: inline-flex; align-items: center; gap: 4px; margin: 2px 0 8px; text-decoration: none; background: var(--primary); color: #fff; font-weight: 600; }
+    .resource-open-btn:active { transform: translateY(1px); }
+    .divider { height: 1px; background: var(--border); }
     .item-img { width: 100%; border-radius: 10px; cursor: pointer; margin-bottom: 8px; background: #ddd; min-height: 120px; object-fit: cover; }
     .item-actions { display: flex; gap: 8px; justify-content: flex-end; }
     .add-subitem { margin-top: 8px; }
@@ -144,7 +158,8 @@
 
     .hidden { display: none !important; }
     .empty { text-align: center; color: var(--text-secondary); padding: 30px; font-size: 14px; }
-    .section-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .section-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; letter-spacing: .2px; }
+    .section-title::before { content: ''; width: 4px; height: 18px; border-radius: 3px; background: var(--primary); display: inline-block; }
     .back-btn { color: var(--primary); cursor: pointer; font-size: 14px; margin-bottom: 12px; display: inline-flex; align-items: center; gap: 4px; }
     .back-btn:hover { text-decoration: underline; }
     .drag-over { border: 2px dashed var(--primary) !important; background: var(--primary-light); }
@@ -293,13 +308,6 @@
       <div id="view-exam" class="hidden">
         <div id="exam-subjects">
           <div id="exam-overview"></div>
-          <div class="section-title">📚 考研科目</div>
-          <div class="subject-grid">
-            <div class="subject-card" onclick="openSubject('math')"><div class="subject-icon">📐</div><div class="subject-name">数学二</div></div>
-            <div class="subject-card" onclick="openSubject('cs408')"><div class="subject-icon">💻</div><div class="subject-name">计算机408</div></div>
-            <div class="subject-card" onclick="openSubject('english')"><div class="subject-icon">🔤</div><div class="subject-name">英语二</div></div>
-            <div class="subject-card" onclick="openSubject('politics')"><div class="subject-icon">🗳️</div><div class="subject-name">政治</div></div>
-          </div>
         </div>
         <div id="exam-detail" class="hidden">
           <div class="back-btn" onclick="backToSubjects()">← 返回科目</div>
@@ -317,12 +325,25 @@
           <div class="hobby-grid" id="hobby-grid"></div>
           <div class="card" style="margin-top:16px">
             <div class="card-title">管理项目</div>
+            <div class="form-row" style="align-items:flex-end">
+              <select class="input" id="manage-hobby-select" onchange="onManageHobbyChange()"><option value="">— 选择项目 —</option></select>
+              <button class="btn btn-small btn-danger" onclick="deleteHobbySelected()">删除项目</button>
+            </div>
+            <div class="form-row" style="align-items:flex-end">
+              <select class="input" id="manage-cat-select"></select>
+              <button class="btn btn-small btn-secondary" onclick="deleteCatSelected()">删除分类</button>
+            </div>
+            <div class="form-row" style="align-items:flex-end">
+              <input class="input" id="manage-new-cat" placeholder="新分类名称">
+              <button class="btn btn-small btn-primary" onclick="addCatToSelected()">添加分类</button>
+            </div>
+            <div class="divider" style="margin:12px 0"></div>
+            <div style="font-size:13px;color:var(--text-secondary);font-weight:600;margin-bottom:6px">添加新项目</div>
             <div class="form-row">
               <input class="input" id="new-hobby-name" placeholder="新项目名称">
               <input class="input" id="new-hobby-icon" placeholder="图标" style="max-width:80px" value="⭐">
               <button class="btn btn-primary" onclick="addHobby()">添加</button>
             </div>
-            <div id="hobby-manage-list"></div>
           </div>
         </div>
         <div id="hobby-detail" class="hidden">
@@ -959,14 +980,41 @@ function renderDaily() {
   state.tasks.forEach(t => {
     const div = document.createElement('div');
     div.className = 'task-item' + (t.done ? ' done' : '');
+    div.setAttribute('data-id', t.id);
     div.innerHTML = `
       <div class="task-check ${t.done ? 'checked' : ''}" onclick="toggleTask('${t.id}')">${t.done ? '✓' : ''}</div>
-      <div class="task-text ${t.done ? 'done' : ''}">${escapeHtml(t.text)}</div>
+      <div class="task-text ${t.done ? 'done' : ''}" onclick="editTask('${t.id}')" title="点击修改">${escapeHtml(t.text)}</div>
       <div class="task-del" onclick="deleteTask('${t.id}')">×</div>`;
     list.appendChild(div);
   });
   renderDashboard();
   renderCalendar();
+}
+function editTask(id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  const item = document.querySelector('.task-item[data-id="' + id + '"]');
+  if (!item) return;
+  const txt = item.querySelector('.task-text');
+  if (!txt || item.querySelector('.task-edit-input')) return;
+  const input = document.createElement('input');
+  input.className = 'task-edit-input';
+  input.value = t.text;
+  txt.replaceWith(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { renderDaily(); }
+  });
+  input.addEventListener('blur', () => {
+    const v = input.value.trim();
+    if (v && v !== t.text) {
+      t.text = v;
+      updateDailySnapshot(); saveState(); schedulePush();
+    }
+    renderDaily();
+  });
 }
 function toggleTask(id) {
   const t = state.tasks.find(x => x.id === id);
@@ -1496,21 +1544,13 @@ function renderHobbies() {
       gridEl.style.pointerEvents = 'auto';
     }
     const manage = document.getElementById('hobby-manage-list');
-    manage.innerHTML = '';
-    state.hobbies.forEach(h => {
-      const div = document.createElement('div');
-      div.className = 'item-card';
-      const cats = h.categories.map(c => `<span class="category-tag">${c} <span class="cat-del" onclick="event.stopPropagation();deleteCategory('${h.id}','${c}')">×</span></span>`).join('');
-      div.innerHTML = `
-        <div class="item-header"><div class="item-title">${h.icon} ${h.name}</div></div>
-        <div class="category-list">${cats}</div>
-        <div class="form-row" style="margin-top:8px">
-          <input class="input" placeholder="新分类" onkeydown="if(event.key==='Enter') addHobbyCategory('${h.id}', this)">
-          <button class="btn btn-small btn-primary" onclick="addHobbyCategory('${h.id}', this.previousElementSibling)">添加</button>
-          <button class="btn btn-small btn-danger" onclick="deleteHobby('${h.id}')">删除项目</button>
-        </div>`;
-      manage.appendChild(div);
-    });
+    if (manage) manage.innerHTML = '';
+    // 管理项目：联动下拉（选项目→显示其分类→可选删/加分类）
+    const sel = document.getElementById('manage-hobby-select');
+    const prevSel = sel.value;
+    sel.innerHTML = '<option value="">— 选择项目 —</option>' + state.hobbies.map(h => `<option value="${h.id}">${h.icon} ${h.name}</option>`).join('');
+    if ([...sel.options].some(o => o.value === prevSel)) sel.value = prevSel;
+    renderManageCatSelect(sel.value);
   } else {
     const h = state.hobbies.find(x => x.id === state.hobbyOpen);
     if (!h) return;
@@ -1534,6 +1574,23 @@ function renderHobbies() {
 function openHobby(id) { state.hobbyOpen = id; state.hobbyFilter = 'all'; saveState(); schedulePush(); renderHobbies(); }
 function backToHobbies() { state.hobbyOpen = null; state.hobbyFilter = 'all'; saveState(); schedulePush(); renderHobbies(); }
 function filterHobbyItems(cat) { state.hobbyFilter = cat; renderHobbyItems(); }
+function platformName(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    const map = [
+      ['bilibili.com', 'B站'], ['b23.tv', 'B站'],
+      ['youtube.com', 'YouTube'], ['youtu.be', 'YouTube'],
+      ['youku.com', '优酷'], ['iqiyi.com', '爱奇艺'],
+      ['v.qq.com', '腾讯视频'], ['qq.com', '腾讯视频'],
+      ['weibo.com', '微博'], ['zhihu.com', '知乎'],
+      ['douyin.com', '抖音'], ['x.com', 'X'], ['twitter.com', 'Twitter'],
+      ['github.com', 'GitHub'], ['netflix.com', 'Netflix'],
+      ['ted.com', 'TED'], ['coursera.org', 'Coursera'], ['ximalaya.com', '喜马拉雅']
+    ];
+    for (const [d, name] of map) if (host.includes(d)) return name;
+    return host.replace(/^www\./, '');
+  } catch { return '链接'; }
+}
 function renderHobbyItems() {
   const h = state.hobbies.find(x => x.id === state.hobbyOpen);
   const container = document.getElementById('hobby-items');
@@ -1543,13 +1600,14 @@ function renderHobbyItems() {
   if (items.length === 0) { container.innerHTML = `<div class="empty">该分类下暂无内容</div>`; return; }
   items.forEach(item => {
     const div = document.createElement('div');
-    div.className = 'item-card';
+    div.className = 'item-card resource-card';
     let media = '';
     if (item.image) media = `<img class="item-img" src="${item.image}" onclick="openLightbox('${item.image}')">`;
     if (item.video) media = `<video controls style="width:100%;border-radius:10px;margin-bottom:8px"><source src="${item.video}"></video>`;
-    const link = item.link ? `<a href="${item.link}" target="_blank" style="color:var(--primary);word-break:break-all">${item.link}</a>` : '';
+    const safeHref = item.link.replace(/"/g, '&quot;');
+    const link = item.link ? `<a class="btn btn-small btn-secondary resource-open-btn" href="${safeHref}" target="_blank" rel="noopener">🔗 打开${platformName(item.link)}</a>` : '';
     div.innerHTML = `
-      <div class="item-header"><div class="item-title">${item.category}</div><div class="task-del" onclick="deleteHobbyItem('${item.id}')">×</div></div>
+      <div class="item-header"><div class="item-title">${escapeHtml(item.category)}</div><div class="task-del" onclick="deleteHobbyItem('${item.id}')">×</div></div>
       ${link}
       <div class="item-desc">${escapeHtml(item.text || '')}</div>
       ${media}`;
@@ -1569,6 +1627,30 @@ function deleteHobby(id) {
   state.hobbies = state.hobbies.filter(x => x.id !== id);
   state.hobbyItems = state.hobbyItems.filter(x => x.hobbyId !== id);
   saveState(); schedulePush(); renderHobbies();
+}
+function renderManageCatSelect(hobbyId) {
+  const catSel = document.getElementById('manage-cat-select');
+  if (!catSel) return;
+  const h = state.hobbies.find(x => x.id === hobbyId);
+  catSel.innerHTML = h && h.categories.length ? h.categories.map(c => `<option value="${c}">${c}</option>`).join('') : '<option value="">（无分类）</option>';
+}
+function onManageHobbyChange() { renderManageCatSelect(document.getElementById('manage-hobby-select').value); }
+function deleteHobbySelected() {
+  const id = document.getElementById('manage-hobby-select').value;
+  if (!id) { alert('请先选择一个项目'); return; }
+  deleteHobby(id);
+}
+function deleteCatSelected() {
+  const id = document.getElementById('manage-hobby-select').value;
+  const cat = document.getElementById('manage-cat-select').value;
+  if (!id || !cat) { alert('请先选择项目和要删除的分类'); return; }
+  deleteCategory(id, cat);
+}
+function addCatToSelected() {
+  const id = document.getElementById('manage-hobby-select').value;
+  const input = document.getElementById('manage-new-cat');
+  if (!id) { alert('请先选择一个项目'); return; }
+  addHobbyCategory(id, input);
 }
 function deleteCategory(hobbyId, cat) {
   if (!confirm(`删除分类「${cat}」会同时删除该分类下的所有收藏，确定？`)) return;
@@ -2445,13 +2527,24 @@ function renderExamOverview() {
       <div class="bar"><div class="bar-fill" style="width:${goalPct}%;background:#fff"></div></div>
     </div>`;
 
-  el.innerHTML = phaseBanner + renderPhaseTimeline() + weekPlanCard + budgetCard + courseCard + renderMockSetHtml() + renderReviewPlanHtml() + renderRecitePlanHtml() + renderMockPlanHtml() + msCard + `
+  // 考研科目网格（移入概览，排在本周计划之下）
+  const subjectGridHtml = `
+    <div class="section-title">📚 考研科目</div>
+    <div class="subject-grid">
+      <div class="subject-card" onclick="openSubject('math')"><div class="subject-icon">📐</div><div class="subject-name">数学二</div></div>
+      <div class="subject-card" onclick="openSubject('cs408')"><div class="subject-icon">💻</div><div class="subject-name">计算机408</div></div>
+      <div class="subject-card" onclick="openSubject('english')"><div class="subject-icon">🔤</div><div class="subject-name">英语二</div></div>
+      <div class="subject-card" onclick="openSubject('politics')"><div class="subject-icon">🗳️</div><div class="subject-name">政治</div></div>
+    </div>`;
+
+  el.innerHTML = phaseBanner + renderPhaseTimeline() + weekPlanCard + subjectGridHtml
+    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + courseCard + msCard + `
     <div class="card">
       <div class="card-title">📈 近14天学习时长</div>
       <canvas id="exam-trend" class="chart"></canvas>
       <div class="legend"><span class="lg-study">学习分钟</span></div>
     </div>
-    <button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="openWeeklyReview()">📝 本周复盘（周日花10分钟总结）</button>` + stagesHtml;
+    <button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="openWeeklyReview()">📝 本周复盘（周日花10分钟总结）</button>` + renderMockPlanHtml() + renderMockSetHtml() + stagesHtml;
   drawExamTrend();
 }
 function weekAgoDate() { const d = new Date(); d.setDate(d.getDate() - 6); d.setHours(0,0,0,0); return d; }
