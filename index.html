@@ -258,8 +258,8 @@
     <div class="brand"><span class="brand-logo">H</span>Head up</div>
     <div id="nav-list"></div>
     <div class="nav-section">同步</div>
-    <div class="sync-box" onclick="openSyncSettings()">
-      <span id="sync-status-text">点击设置同步码</span>
+    <div class="sync-box" onclick="openSettings()">
+      <span id="sync-status-text">点击设置同步</span>
       <span class="sync-dot" id="sync-dot"></span>
     </div>
     <div class="nav-section">设置</div>
@@ -502,6 +502,18 @@
         <label>🔔 桌面提醒（就寝/学习）</label>
         <input type="checkbox" id="set-notif">
       </div>
+      <div style="margin:10px 0 6px;font-weight:600;font-size:14px">🔄 数据同步（GitHub）</div>
+      <div class="card-sub" style="margin-bottom:8px">手机和电脑填相同的 Token 与房间号即可自动互相同步。Token 在 GitHub → Settings → Developer settings → Personal access tokens 生成（勾选 <b>repo</b>）。</div>
+      <div class="setting-row">
+        <label>GitHub Token</label>
+        <input class="input" id="set-sync-token" type="password" placeholder="ghp_xxx（仅存本机）" style="max-width:200px">
+      </div>
+      <div class="setting-row">
+        <label>房间号</label>
+        <input class="input" id="set-sync-room" placeholder="如 family / my2026" style="max-width:160px">
+      </div>
+      <button class="btn btn-small btn-primary" onclick="saveSyncConfig()">保存并连接</button>
+      <div id="sync-config-status" style="font-size:12px;color:var(--text-secondary);margin-top:6px"></div>
       <div style="margin:10px 0 6px;font-weight:600;font-size:14px">💾 数据备份</div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <button class="btn btn-small btn-secondary" onclick="exportBackup()">⬇️ 导出备份</button>
@@ -846,49 +858,56 @@ function updateSyncUI(status, cls) {
   d.className = 'sync-dot' + (cls ? ' ' + cls : '');
 }
 function schedulePush() {
-  if (!syncRoom) return;
+  if (!syncRoom || !syncToken()) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushSync, 1000);
 }
 async function pushSync() {
-  if (!syncRoom) return;
+  if (!syncRoom || !syncToken()) { updateSyncUI('未设置 Token', 'off'); return; }
   if (!navigator.onLine) { _syncOffline = true; updateSyncUI('离线·已存本地', 'off'); return; }
   updateSyncUI('同步中…', 'sync');
   const ts = Date.now();
   if (ts > syncTs) syncTs = ts;
+  const payload = b64encodeUnicode(JSON.stringify({ ts, data: state }));
+  const filePath = 'sync/' + syncRoomSafe() + '.json';
   try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 8000);
-    const r = await fetch('/api/sync?room=' + encodeURIComponent(syncRoom), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ts, data: state }), signal: ctrl.signal
-    });
-    clearTimeout(to);
-    const j = await r.json();
-    syncTs = j.ts || ts;
+    if (!_syncSha) {
+      try { const g = await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + filePath); if (g.ok) { const gd = await g.json(); _syncSha = gd.sha; } } catch(e){}
+    }
+    const body = { message: 'headup sync', content: payload };
+    if (_syncSha) body.sha = _syncSha;
+    let res = await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + filePath, { method: 'PUT', body: JSON.stringify(body) });
+    if (res.status === 409) {
+      _syncSha = null;
+      const g = await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + filePath);
+      if (g.ok) { const gd = await g.json(); _syncSha = gd.sha; }
+      body.sha = _syncSha;
+      res = await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + filePath, { method: 'PUT', body: JSON.stringify(body) });
+      if (!res.ok) throw new Error('retry ' + res.status);
+    } else if (!res.ok) {
+      throw new Error('push ' + res.status);
+    }
+    _syncSha = (await res.json()).content.sha;
     updateSyncUI('已同步', 'ok');
     _syncFailCount = 0; _syncOffline = false;
   } catch(e) {
     _syncFailCount++;
-    // 失败时数据已存本地,不影响使用;仅降低 UI 频率避免刷屏
     updateSyncUI('离线·已存本地', 'off');
   }
 }
 async function pullSync() {
-  if (!syncRoom) return;
+  if (!syncRoom || !syncToken()) { updateSyncUI('未设置 Token', 'off'); return; }
   if (!navigator.onLine) { updateSyncUI('离线·已存本地', 'off'); return; }
+  const filePath = 'sync/' + syncRoomSafe() + '.json';
   try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 8000);
-    const r = await fetch('/api/sync?room=' + encodeURIComponent(syncRoom), { cache: 'no-store', signal: ctrl.signal });
-    clearTimeout(to);
-    const j = await r.json();
-    if (j.data && j.ts > syncTs) {
-      state = j.data;
-      ensureState();
-      syncTs = j.ts;
-      saveState();
-      renderCurrentView();
+    const res = await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + filePath, { cache: 'no-store' });
+    if (res.status === 404) { updateSyncUI('已同步（无远端数据）', 'ok'); return; }
+    if (!res.ok) throw new Error('pull ' + res.status);
+    const data = await res.json();
+    _syncSha = data.sha;
+    const obj = JSON.parse(b64decodeUnicode(data.content));
+    if (obj.data && obj.ts > syncTs) {
+      state = obj.data; ensureState(); syncTs = obj.ts; saveState(); renderCurrentView();
     }
     updateSyncUI('已同步', 'ok');
     _syncFailCount = 0; _syncOffline = false;
@@ -900,22 +919,42 @@ async function pullSync() {
 // 网络恢复后立即重连
 window.addEventListener('online', () => {
   _syncOffline = false;
-  if (syncRoom) { pullSync(); }
+  if (syncRoom && syncToken()) pullSync();
 });
-function openSyncSettings() {
-  const code = prompt('设置同步码：手机和平板填写相同的一串字符即可自动同步数据。', syncRoom || '');
-  if (code === null) return;
-  syncRoom = code.trim();
-  localStorage.setItem('syncRoom', syncRoom);
-  if (!syncRoom) { updateSyncUI('未设置'); return; }
+let _syncSha = null; // 缓存远端文件 sha，减少 API 调用
+const SYNC_OWNER = 'X0518390';
+const SYNC_REPO = 'headup';
+function syncToken() { return localStorage.getItem('headup-sync-token') || ''; }
+function syncRoomSafe() { return (syncRoom || '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'default'; }
+function b64encodeUnicode(str) { return btoa(unescape(encodeURIComponent(str))); }
+function b64decodeUnicode(b64) { return decodeURIComponent(escape(atob(b64))); }
+async function ghApi(path, opts) {
+  const headers = { 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' };
+  const t = syncToken();
+  if (t) headers['Authorization'] = 'Bearer ' + t;
+  return fetch('https://api.github.com' + path, Object.assign({ headers }, opts));
+}
+function openSyncSettings() { openSettings(); }
+function saveSyncConfig() {
+  const tok = document.getElementById('set-sync-token').value.trim();
+  const room = document.getElementById('set-sync-room').value.trim();
+  localStorage.setItem('headup-sync-token', tok);
+  localStorage.setItem('syncRoom', room);
+  syncRoom = room;
+  _syncSha = null;
+  const st = document.getElementById('sync-config-status');
+  if (!tok || !room) { st.textContent = '请同时填写 Token 和房间号'; st.style.color = '#e74c3c'; return; }
+  st.textContent = '已保存，正在连接…'; st.style.color = 'var(--text-secondary)';
   updateSyncUI('同步中…', 'sync');
   pullSync();
-  setInterval(pullSync, 15000);
+  if (!window.__syncTimer) window.__syncTimer = setInterval(pullSync, 15000);
+  st.textContent = '已连接：手机与电脑填写相同的 Token 和房间号即可互相同步';
+  st.style.color = '#2ecc71';
 }
 function initSync() {
   syncRoom = localStorage.getItem('syncRoom') || '';
-  if (syncRoom) { updateSyncUI('同步中…', 'sync'); pullSync(); setInterval(pullSync, 15000); }
-  else updateSyncUI('点击设置同步码');
+  if (syncRoom && syncToken()) { updateSyncUI('同步中…', 'sync'); pullSync(); window.__syncTimer = setInterval(pullSync, 15000); }
+  else updateSyncUI(syncToken() ? '未设置房间号' : '点击设置同步', '');
 }
 
 // ================= Navigation =================
@@ -2164,6 +2203,8 @@ function openSettings() {
   document.getElementById('set-reward-days').value = state.settings.rewardDays || 5;
   document.getElementById('set-reward-hours').value = state.settings.rewardHours || 3;
   document.getElementById('set-notif').checked = !!state.settings.notif;
+  document.getElementById('set-sync-token').value = localStorage.getItem('headup-sync-token') || '';
+  document.getElementById('set-sync-room').value = localStorage.getItem('syncRoom') || '';
   renderNavOrderEditor();
   document.getElementById('settings-modal').classList.add('show');
 }
