@@ -1,5 +1,6 @@
 const CACHE_NAME = 'lamb-workbench-v2';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+// 相对路径:兼容 GitHub Pages 子路径(/headup/)与 Vercel 根路径部署
+const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
