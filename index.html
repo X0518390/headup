@@ -78,7 +78,7 @@
 
     .task-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg); border-radius: 12px; margin-bottom: 10px; flex-wrap: wrap; }
     .task-time { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
-    .task-pomo { background: rgba(243,131,44,.14); color: var(--primary); border: none; border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .task-pomo { background: rgba(243,131,44,.14); color: #7a3e12; border: none; border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 600; }
     .task-pomo:active { transform: scale(.95); }
     .task-target { width: 54px; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
     .task-progress { flex: 1; min-width: 90px; height: 8px; background: #ececf0; border-radius: 6px; overflow: hidden; }
@@ -231,6 +231,19 @@
     [data-theme="dark"] .card-warn { background: linear-gradient(135deg,#4a2520,#2c2c2e); }
     [data-theme="dark"] .card-hero { background: linear-gradient(135deg,#a85510,#c2691e); color:#fff; box-shadow:0 4px 16px rgba(168,85,16,.4); }
     [data-theme="dark"] .alert-banner { background: #4a2520 !important; color: #ffb4a8 !important; }
+    [data-theme="dark"] .task-pomo { color: #ffc499; }
+
+    /* 新版本提示条（Service Worker 更新时弹出, 解决手机缓存旧版问题） */
+    #update-banner {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 74px; z-index: 9999; display: none; align-items: center; gap: 10px;
+      background: #f3832c; color: #fff; padding: 10px 16px; border-radius: 999px;
+      font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.28); max-width: 90vw;
+    }
+    #update-banner button {
+      background: #fff; color: #f3832c; border: none; border-radius: 999px;
+      padding: 5px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
 
     /* 字号缩放：作用于内容和侧栏，%overflow-x 可横向滚动，不会裁切 */
     .content { overflow-x: auto; }
@@ -4228,7 +4241,25 @@ function init() {
   initSync();
   setInterval(checkBedtimeNotif, 60000);
   checkBedtimeNotif();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js?v=3').catch(() => {});
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
+    });
+  }
+}
+
+// 弹出"已更新到新版本"提示条, 点击即刷新到最新(绕过手机缓存)
+function showUpdateBanner() {
+  let b = document.getElementById('update-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'update-banner';
+    b.innerHTML = '<span>已更新到新版本</span><button>刷新</button>';
+    document.body.appendChild(b);
+    b.querySelector('button').addEventListener('click', () => location.reload());
+  }
+  b.style.display = 'flex';
 }
 init();
 </script>
