@@ -216,6 +216,11 @@
       --border: #3a3a3c; --primary-light: #3d2f22; --shadow: 0 2px 12px rgba(0,0,0,.4);
     }
     [data-theme="dark"] .item-img { background: #444; }
+    /* 夜间模式：覆盖卡片中写死的浅色/橙色背景（内联 style 需要 !important） */
+    [data-theme="dark"] .card[style*="linear-gradient(135deg,#fff7ef"] { background: linear-gradient(135deg,#3d2f22,#2c2c2e) !important; }
+    [data-theme="dark"] .card[style*="linear-gradient(135deg,#fff5f5"] { background: linear-gradient(135deg,#4a2520,#2c2c2e) !important; }
+    [data-theme="dark"] .card[style*="linear-gradient(135deg,#f3832c"] { background: linear-gradient(135deg,#a85510,#c2691e) !important; color: #ffffff !important; }
+    [data-theme="dark"] .alert-banner { background: #4a2520 !important; color: #ffb4a8 !important; }
 
     /* 字号缩放：作用于内容和侧栏，%overflow-x 可横向滚动，不会裁切 */
     .content { overflow-x: auto; }
