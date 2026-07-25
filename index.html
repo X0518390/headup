@@ -1175,8 +1175,8 @@ function renderCalendar() {
   const todayS = todayStr();
   for (let d=1; d<=days; d++) {
     const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const tasks = histTasks(ds);
-    const th = tasks.slice(0,3).map(t => `<div class="cal-task">${escapeHtml(t.text)}</div>`).join('') + (tasks.length>3 ? '<div class="cal-task">…</div>' : '');
+    const tasks = histTasks(ds).filter(t => t.done);
+    const th = tasks.slice(0,3).map(t => `<div class="cal-task">✓ ${escapeHtml(t.text)}</div>`).join('') + (tasks.length>3 ? '<div class="cal-task">…</div>' : '');
     const isToday = ds === todayS, isSel = ds === selectedDate;
     html += `<div class="cal-cell ${isToday?'cal-today':''} ${isSel?'cal-sel':''}" onclick="selectDate('${ds}')"><div class="cal-day">${d}</div>${th}</div>`;
   }
@@ -1187,11 +1187,10 @@ function renderCalendar() {
 function renderCalendarDetail() {
   const detail = document.getElementById('calendar-detail');
   if (!detail) return;
-  const dt = histTasks(selectedDate);
-  const doneCnt = dt.filter(t => t.done).length;
-  let html = `<div class="card-sub">${selectedDate} 完成 ${doneCnt}/${dt.length} 项</div>`;
-  if (dt.length) html += dt.map(t => `<div style="padding:6px 0;border-bottom:1px solid #eee">${escapeHtml(t.text)}</div>`).join('');
-  else html += '<div class="empty">当天无记录</div>';
+  const dt = histTasks(selectedDate).filter(t => t.done);
+  let html = `<div class="card-sub">${selectedDate} 完成 ${dt.length} 项</div>`;
+  if (dt.length) html += dt.map(t => `<div style="padding:6px 0;border-bottom:1px solid #eee">✓ ${escapeHtml(t.text)}</div>`).join('');
+  else html += '<div class="empty">当天还没勾选完成的任务</div>';
   detail.innerHTML = html;
 }
 function changeMonth(d) {
