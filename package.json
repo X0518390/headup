@@ -1,0 +1,9 @@
+{
+  "name": "headup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Head up - 考研个人效率 PWA",
+  "dependencies": {
+    "@vercel/kv": "^1.0.1"
+  }
+}
