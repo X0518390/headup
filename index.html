@@ -82,8 +82,6 @@
     .task-progress.done > i { background: #2e9e5b; }
     .task-item.done { background: var(--primary-light); }
     .task-link { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 6px; font-size: 12px; flex-wrap: wrap; }
-    .task-link-btn { background: rgba(52,152,219,.12); color: #2f8fd1; border: 1px dashed var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
-    .task-link-btn:active { transform: scale(.96); }
     .task-link-open { color: var(--primary); text-decoration: none; font-weight: 600; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .task-link-open:hover { text-decoration: underline; }
     .task-link-act { cursor: pointer; color: var(--text-secondary); font-size: 13px; padding: 0 2px; }
@@ -1227,13 +1225,12 @@ function renderDaily() {
     if (t.link) {
       const href = escapeAttr(t.link);
       const disp = escapeHtml(t.link.length > 42 ? t.link.slice(0, 42) + '…' : t.link);
+      // 点击在当前页打开链接，交给手机系统通过 Universal/App Link 唤起对应 App；不开新标签，否则拉不起 App
       linkRow = `<div class="task-link">
-        <a class="task-link-open" href="${href}" target="_blank" rel="noopener" title="打开链接">🔗 ${disp}</a>
+        <a class="task-link-open" href="${href}" title="点击打开对应 App">🔗 ${disp}</a>
         <span class="task-link-act" onclick="editTaskLink('${t.id}')" title="修改链接">✎</span>
         <span class="task-link-act" onclick="clearTaskLink('${t.id}')" title="清除链接">✕</span>
       </div>`;
-    } else {
-      linkRow = `<div class="task-link"><button class="task-link-btn" onclick="pasteTaskLink('${t.id}')">📎 粘贴链接</button></div>`;
     }
     div.innerHTML = `
       <div class="task-check ${t.done ? 'checked' : ''}" onclick="toggleTask('${t.id}')">${t.done ? '✓' : ''}</div>
@@ -1342,22 +1339,7 @@ function setTaskTarget(id, val) {
   t.target = Math.max(0, Math.round(parseInt(val) || 0));
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
 }
-// 每日任务链接：粘贴剪贴板里的链接生成超链接；可编辑、可清除；新的一天默认沿用昨天的链接
-function pasteTaskLink(id) {
-  const t = state.tasks.find(x => x.id === id);
-  if (!t) return;
-  if (navigator.clipboard && navigator.clipboard.readText) {
-    navigator.clipboard.readText().then(txt => {
-      const url = extractFirstUrl(txt) || (txt || '').trim();
-      if (!url) { toast('剪贴板里没有可用链接'); return; }
-      t.link = url;
-      updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
-      toast('已粘贴链接到该任务');
-    }).catch(() => { toast('读取剪贴板失败，请点 ✎ 手动输入'); });
-  } else {
-    toast('当前环境不支持剪贴板，请点 ✎ 手动输入');
-  }
-}
+// 每日任务链接：可编辑（✎）、可清除（✕）；点击 🔗 在当前页打开链接，由手机系统唤起对应 App；新的一天默认沿用昨天的链接
 function editTaskLink(id) {
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
