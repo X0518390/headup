@@ -93,7 +93,7 @@
     .textarea { min-height: 80px; resize: vertical; }
     .input:focus, .textarea:focus { border-color: var(--primary); }
 
-    .subject-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .subject-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
     .subject-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); cursor: pointer; text-align: center; transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
     .subject-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
     .subject-card:active { transform: translateY(0); }
@@ -112,6 +112,9 @@
     .resource-open-btn { display: inline-flex; align-items: center; gap: 4px; margin: 2px 0 8px; text-decoration: none; background: var(--primary); color: #fff; font-weight: 600; }
     .resource-open-btn:active { transform: translateY(1px); }
     .divider { height: 1px; background: var(--border); }
+    .wheel-wrap { position: relative; width: 280px; max-width: 100%; margin: 4px auto 0; }
+    .wheel-wrap canvas { display: block; width: 280px; height: 280px; max-width: 100%; border-radius: 50%; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+    .wheel-pointer { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 20px solid var(--primary); z-index: 2; filter: drop-shadow(0 2px 2px rgba(0,0,0,.2)); }
     .item-img { width: 100%; border-radius: 10px; cursor: pointer; margin-bottom: 8px; background: #ddd; min-height: 120px; object-fit: cover; }
     .item-actions { display: flex; gap: 8px; justify-content: flex-end; }
     .add-subitem { margin-top: 8px; }
@@ -323,6 +326,15 @@
           <div id="hobby-lock" class="hidden"></div>
           <div class="section-title">🎨 兴趣爱好</div>
           <div class="hobby-grid" id="hobby-grid"></div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-title">🎡 兴趣转盘</div>
+            <div class="card-sub">不知道玩啥？转一转，每个项目概率均等</div>
+            <div class="wheel-wrap">
+              <div class="wheel-pointer"></div>
+              <canvas id="hobby-wheel" width="280" height="280"></canvas>
+            </div>
+            <button class="btn btn-primary btn-block" id="wheel-spin-btn" onclick="spinWheel()" style="margin-top:14px">🎲 开始转盘</button>
+          </div>
           <div class="card" style="margin-top:16px">
             <div class="card-title">管理项目</div>
             <div class="form-row" style="align-items:flex-end">
@@ -1551,6 +1563,7 @@ function renderHobbies() {
     sel.innerHTML = '<option value="">— 选择项目 —</option>' + state.hobbies.map(h => `<option value="${h.id}">${h.icon} ${h.name}</option>`).join('');
     if ([...sel.options].some(o => o.value === prevSel)) sel.value = prevSel;
     renderManageCatSelect(sel.value);
+    drawWheel();
   } else {
     const h = state.hobbies.find(x => x.id === state.hobbyOpen);
     if (!h) return;
@@ -1572,6 +1585,92 @@ function renderHobbies() {
   }
 }
 function openHobby(id) { state.hobbyOpen = id; state.hobbyFilter = 'all'; saveState(); schedulePush(); renderHobbies(); }
+// ================= 兴趣转盘 =================
+let wheelRotation = 0;
+let wheelSpinning = false;
+const WHEEL_COLORS = ['#f3832c','#f7a35c','#5b8c51','#6aa0c9','#9b6dca','#e07a5f','#3d9970','#c97b9b','#d4a017','#5f9ea0','#e2954a','#7d8c5e'];
+function drawWheel() {
+  const canvas = document.getElementById('hobby-wheel');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const size = 280;
+  if (canvas.width !== size * dpr) {
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const cx = size / 2, cy = size / 2, r = size / 2 - 4;
+  const hobbies = state.hobbies || [];
+  if (hobbies.length === 0) {
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fillStyle = '#eee'; ctx.fill();
+    ctx.fillStyle = '#999'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('暂无项目', cx, cy);
+    return;
+  }
+  const n = hobbies.length;
+  const seg = 2 * Math.PI / n;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(wheelRotation);
+  for (let i = 0; i < n; i++) {
+    const a0 = i * seg - Math.PI / 2;
+    const a1 = a0 + seg;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, a0, a1); ctx.closePath();
+    ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length]; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.save();
+    ctx.rotate(a0 + seg / 2);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+    ctx.font = '600 13px sans-serif';
+    const name = hobbies[i].name || '';
+    const label = name.length > 6 ? name.slice(0, 6) : name;
+    ctx.fillText(label, r - 12, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+  // 中心圆
+  ctx.beginPath(); ctx.arc(cx, cy, 20, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#f3832c'; ctx.stroke();
+  ctx.fillStyle = '#f3832c'; ctx.font = '700 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('GO', cx, cy);
+}
+function spinWheel() {
+  if (wheelSpinning) return;
+  const hobbies = state.hobbies || [];
+  if (hobbies.length === 0) { alert('还没有项目，先在下方添加一个吧'); return; }
+  if (hobbies.length === 1) { openHobby(hobbies[0].id); return; }
+  wheelSpinning = true;
+  const btn = document.getElementById('wheel-spin-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '转动中…'; }
+  const n = hobbies.length;
+  const seg = 2 * Math.PI / n;
+  const target = Math.floor(Math.random() * n); // 均匀概率：每个项目 1/n
+  const fullTurns = 5 + Math.floor(Math.random() * 3); // 5~7 整圈
+  // 让 target 段中心对准顶部指针：-π/2 + R + (target+0.5)*seg ≡ -π/2  →  R ≡ -(target+0.5)*seg
+  let finalRot = -(target + 0.5) * seg + fullTurns * 2 * Math.PI;
+  const curFull = Math.floor(wheelRotation / (2 * Math.PI));
+  finalRot += curFull * 2 * Math.PI;
+  while (finalRot < wheelRotation + fullTurns * 2 * Math.PI - seg) finalRot += 2 * Math.PI;
+  const startRot = wheelRotation;
+  const delta = finalRot - startRot;
+  const dur = 3000 + Math.random() * 900;
+  const t0 = performance.now();
+  function frame(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic：先快后慢，自然停下
+    wheelRotation = startRot + delta * eased;
+    drawWheel();
+    if (p < 1) requestAnimationFrame(frame);
+    else {
+      wheelSpinning = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.textContent = '🎲 开始转盘'; }
+      openHobby(hobbies[target].id); // 转完自动打开该项目
+    }
+  }
+  requestAnimationFrame(frame);
+}
 function backToHobbies() { state.hobbyOpen = null; state.hobbyFilter = 'all'; saveState(); schedulePush(); renderHobbies(); }
 function filterHobbyItems(cat) { state.hobbyFilter = cat; renderHobbyItems(); }
 function platformName(url) {
