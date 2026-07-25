@@ -561,6 +561,34 @@
     </div>
   </div>
 
+  <!-- 补做欠账 Modal -->
+  <div class="modal-overlay" id="makeup-modal" onclick="if(event.target===this) closeMakeup()">
+    <div class="modal">
+      <h3 id="makeup-title">补做学习</h3>
+      <div class="card-sub" id="makeup-sub"></div>
+      <div class="setting-row" id="makeup-subject-row">
+        <label>科目</label>
+        <select class="input" id="makeup-subject">
+          <option value="math">📐 数学二</option>
+          <option value="cs408">💻 计算机408</option>
+          <option value="english">🔤 英语二</option>
+          <option value="politics">🗳️ 政治</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <label>补做分钟</label>
+        <input class="input" id="makeup-minutes" type="number" min="1" value="30" style="max-width:100px">
+      </div>
+      <div style="display:flex;gap:8px;margin:6px 0 12px">
+        <button class="btn btn-small btn-secondary" onclick="setMakeupMin(15)">+15</button>
+        <button class="btn btn-small btn-secondary" onclick="setMakeupMin(30)">+30</button>
+        <button class="btn btn-small btn-secondary" onclick="setMakeupMin(60)">+60</button>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="confirmMakeup()">确认补做</button>
+      <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeMakeup()">取消</button>
+    </div>
+  </div>
+
   <!-- PWA 安装引导 -->
   <div class="install-banner" id="install-banner" style="display:none">
     <div style="font-size:24px">📲</div>
@@ -574,6 +602,7 @@
   <!-- 快捷浮动按钮 -->
   <div class="fab" id="fab" onclick="toggleFabSheet()">＋</div>
   <div class="fab-sheet" id="fab-sheet">
+    <button class="btn btn-small" onclick="fabMakeup()">🔧 补做欠账</button>
     <button class="btn btn-small" onclick="fabLogStudy()">🍅 记25分钟学习</button>
     <button class="btn btn-small" onclick="fabAddTask()">✅ 加今日任务</button>
     <button class="btn btn-small" onclick="fabAddMistake()">🔴 加一道错题</button>
@@ -764,6 +793,7 @@ let state = {
   courses: { zhangyu: 15, wangdao: 8 },
   weeklyReview: {},
   mockSets: { math: 0, cs408: 0 },
+  deficits: { weekly: {}, daily: {}, _wk: 0, _day: '' },
   settings: { examDate: '2026-12-19', bedTime: '23:30', studyGoal: 240, weekdayGoal: 240, weekendGoal: 300, theme: 'auto', navOrder: ['daily','exam','life','hobbies','habits'], autoPlan: true, rewardDays: 5, rewardHours: 3, notif: false }
 };
 
@@ -802,6 +832,11 @@ function ensureState() {
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
   if (!state.weeklyReview) state.weeklyReview = {};
   if (!state.mockSets) state.mockSets = { math: 0, cs408: 0 };
+  if (!state.deficits) state.deficits = { weekly: {}, daily: {}, _wk: 0, _day: '' };
+  if (state.deficits.weekly === undefined) state.deficits.weekly = {};
+  if (state.deficits.daily === undefined) state.deficits.daily = {};
+  if (!state.deficits._wk) state.deficits._wk = getPlanStatus().weekNum; // 仅在功能启用后开始记账，不回溯历史周
+  if (!state.deficits._day) state.deficits._day = todayStr();
   if (!state.energyLog) state.energyLog = {};
   if (!state.recite) state.recite = { math: [], cs408: [], english: [], politics: [] };
   else ['math','cs408','english','politics'].forEach(s => { if (!state.recite[s]) state.recite[s] = []; });
@@ -986,6 +1021,7 @@ function renderCurrentView() {
 
 // ================= Daily Plan =================
 function checkNewDay() {
+  reconcileDeficits();
   const today = todayStr();
   if (state.lastTaskDate !== today) {
     if (state.settings.autoPlan) {
@@ -2397,6 +2433,131 @@ function lateNightCount(days) {
   return state.habit.records.filter(r => r.sleep && new Date(r.date) >= from && isLateNight(r.sleep)).length;
 }
 function currentWeekNum() { return getPlanStatus().weekNum; }
+// ================= 欠账 / 补做（周目标 & 日目标） =================
+// 某计划周（第 pw 周）内，各科实际学习分钟
+function subjectActualForWeek(pw) {
+  const start = new Date(PLAN.examStart + 'T00:00:00');
+  start.setDate(start.getDate() + (pw - 1) * 7);
+  const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
+  const map = {};
+  (state.studyRecords || []).forEach(r => {
+    const d = new Date(r.date + 'T00:00:00');
+    if (d >= start && d <= end) map[r.subject] = (map[r.subject] || 0) + (r.minutes || 0);
+  });
+  return map;
+}
+// 在“日/周”跨过边界时，把上一阶段没填满的预算记成欠账（可补做清零）
+function reconcileDeficits() {
+  if (!state.deficits) state.deficits = { weekly: {}, daily: {}, _wk: 0, _day: '' };
+  const curWk = currentWeekNum();
+  const today = todayStr();
+  // —— 周欠账：补齐 (上次记账周, 当前周) 之间每一周 ——
+  let fromWk = (state.deficits._wk || 0) + 1;
+  for (let pw = fromWk; pw < curWk; pw++) {
+    if (pw < 1) continue;
+    if (state.deficits.weekly[pw] === undefined) {
+      const actual = subjectActualForWeek(pw);
+      const short = {};
+      ['math','cs408','english','politics'].forEach(s => {
+        const d = (PLAN.weeklyBudget[s] || 0) - (actual[s] || 0);
+        if (d > 0) short[s] = d;
+      });
+      state.deficits.weekly[pw] = short; // 可能为空对象（该周已达标）
+    }
+  }
+  if (curWk > (state.deficits._wk || 0)) state.deficits._wk = curWk;
+  // —— 日欠账：补齐 [上次记账日, 今天) 每一天（不含今天） ——
+  const oldDay = state.deficits._day || today;
+  let cursor = new Date(oldDay + 'T00:00:00');
+  const todayD = new Date(today + 'T00:00:00');
+  let guard = 0;
+  while (cursor < todayD && guard++ < 400) {
+    const ds = dateStr(cursor);
+    if (state.deficits.daily[ds] === undefined) {
+      const actual = studySum(r => r.date === ds);
+      const goal = dayGoal(ds);
+      state.deficits.daily[ds] = Math.max(0, goal - actual);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  state.deficits._day = today;
+  saveState();
+}
+// 取所有仍有欠账的计划周（按周号从大到小），每项含各科剩余分钟
+function outstandingWeeklyDeficits() {
+  const out = [];
+  Object.keys(state.deficits.weekly || {}).map(Number).sort((a,b) => b - a).forEach(wk => {
+    const w = state.deficits.weekly[wk];
+    const items = ['math','cs408','english','politics'].filter(s => (w[s] || 0) > 0)
+      .map(s => ({ sub: s, short: w[s] }));
+    if (items.length) out.push({ week: wk, items });
+  });
+  return out;
+}
+// 取最近一个仍有日欠账的日期
+function latestDailyDeficit() {
+  const keys = Object.keys(state.deficits.daily || {}).filter(d => (state.deficits.daily[d] || 0) > 0).sort((a,b) => b.localeCompare(a));
+  if (!keys.length) return null;
+  return { date: keys[0], short: state.deficits.daily[keys[0]] };
+}
+// ================= 补做弹窗 =================
+let _makeup = null;
+function openMakeup(type, key, sub) {
+  _makeup = { type, key, sub };
+  const title = document.getElementById('makeup-title');
+  const subRow = document.getElementById('makeup-subject-row');
+  const subSel = document.getElementById('makeup-subject');
+  if (type === 'weekly') {
+    const w = state.deficits.weekly[key] || {};
+    const short = w[sub] || 0;
+    title.textContent = `补做 · 第${key}周 ${subjectConfig[sub].name}`;
+    document.getElementById('makeup-sub').textContent = `该周还欠 ${fmtMin(short)}，补做后自动从欠账中扣减。`;
+    subRow.style.display = 'none';
+  } else {
+    const short = state.deficits.daily[key] || 0;
+    title.textContent = `补做 · ${key}（昨日）`;
+    document.getElementById('makeup-sub').textContent = `昨日还欠 ${fmtMin(short)}，选任一科补做即可扣减。`;
+    subRow.style.display = '';
+    subSel.value = 'math';
+  }
+  document.getElementById('makeup-minutes').value = 30;
+  document.getElementById('makeup-modal').classList.add('show');
+}
+function setMakeupMin(v) { const el = document.getElementById('makeup-minutes'); if (el) el.value = v; }
+function closeMakeup() { const m = document.getElementById('makeup-modal'); if (m) m.classList.remove('show'); _makeup = null; }
+function confirmMakeup() {
+  if (!_makeup) return;
+  const mins = Math.max(1, parseInt(document.getElementById('makeup-minutes').value) || 0);
+  const sub = _makeup.type === 'weekly' ? _makeup.sub : document.getElementById('makeup-subject').value;
+  doMakeup(_makeup.type, _makeup.key, sub, mins);
+}
+function doMakeup(type, key, sub, minutes) {
+  minutes = Math.round(minutes);
+  if (minutes <= 0 || !sub) return;
+  state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: sub, minutes, late: isAfterBedtime(), makeup: true });
+  if (type === 'weekly') {
+    const w = state.deficits.weekly[key];
+    if (w) {
+      w[sub] = Math.max(0, (w[sub] || 0) - minutes);
+      if ((w[sub] || 0) === 0) delete w[sub];
+      if (Object.keys(w).length === 0) delete state.deficits.weekly[key];
+    }
+  } else {
+    state.deficits.daily[key] = Math.max(0, (state.deficits.daily[key] || 0) - minutes);
+    if ((state.deficits.daily[key] || 0) === 0) delete state.deficits.daily[key];
+  }
+  saveState(); schedulePush(); closeMakeup(); renderCurrentView();
+  toast('已补做 ' + fmtMin(minutes) + '，欠账减少 💪');
+}
+// FAB 一键补做：优先昨日欠账，其次最近一周欠账
+function fabMakeup() {
+  document.getElementById('fab-sheet').classList.remove('show');
+  const d = latestDailyDeficit();
+  if (d) { openMakeup('daily', d.date, ''); return; }
+  const w = outstandingWeeklyDeficits()[0];
+  if (w) { openMakeup('weekly', w.week, w.items[0].sub); return; }
+  toast('暂时没有欠账，继续保持 🎉');
+}
 // 每周达标首次达成时，把奖励分钟存入“爱好时间银行”（每周只存一次）
 function creditHobbyBank() {
   if (!weeklyRewardEarned()) return false;
@@ -2551,7 +2712,19 @@ function renderDashboard() {
         <div style="font-size:12px;color:var(--text-secondary)">连续早睡达标<br>近30天熬夜 <b style="color:${lateN?'#e74c3c':'inherit'}">${lateN}</b> 次</div>
       </div>
     </div>`;
-  el.innerHTML = alert + recCard + heroCard + goalHtml + todoCard + sleepStreakCard + ruleCard + phaseTl + `
+  // 昨日目标欠账（可补做清零）
+  const dDef = latestDailyDeficit();
+  let dDefHtml = '';
+  if (dDef) {
+    dDefHtml = `<div class="card" style="border-left:4px solid #e74c3c;background:linear-gradient(135deg,#fff5f5,#fff)">
+      <div class="card-title">⚠️ 昨日学习目标未完成</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <span class="card-sub">${dDef.date} 还差 <b class="status-bad">${fmtMin(dDef.short)}</b>（目标 ${fmtMin(dayGoal(dDef.date))}）</span>
+        <button class="btn btn-small btn-primary" onclick="openMakeup('daily','${dDef.date}','')">补做</button>
+      </div>
+    </div>`;
+  }
+  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + todoCard + sleepStreakCard + ruleCard + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
       <div class="dash-card"><div class="dash-num">${fmtMin(todayStudy)}</div><div class="dash-label">今日学习</div></div>
@@ -2695,6 +2868,27 @@ function renderExamOverview() {
       ${budgetRows}
     </div>`;
 
+  // 上周目标欠账（可补做清零）
+  const wDefs = outstandingWeeklyDeficits();
+  let deficitCard = '';
+  if (wDefs.length) {
+    const blocks = wDefs.map(d => {
+      const rows = d.items.map(it => `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:6px 0">
+          <span>${subjectConfig[it.sub].icon} ${subjectConfig[it.sub].name}</span>
+          <span class="status-bad">还欠 ${fmtMin(it.short)}</span>
+          <button class="btn btn-small btn-primary" onclick="openMakeup('weekly',${d.week},'${it.sub}')">补做</button>
+        </div>`).join('');
+      return `<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--border)">
+        <div style="font-weight:600;margin-bottom:2px">📅 第${d.week}周（${weekRange(d.week)}）</div>${rows}</div>`;
+    }).join('');
+    deficitCard = `<div class="card" style="border-left:4px solid #e74c3c;background:linear-gradient(135deg,#fff5f5,#fff)">
+      <div class="card-title">⚠️ 上周目标未完成（欠账待补）</div>
+      <div class="card-sub">每周预算没填满的科目会记成欠账，补做对应科目即可清零。</div>
+      ${blocks}
+    </div>`;
+  }
+
   // 看课进度（张宇 / 王道）
   const courseCard = renderCourseTrackerHtml();
 
@@ -2734,7 +2928,7 @@ function renderExamOverview() {
     </div>`;
 
   el.innerHTML = phaseBanner + renderPhaseTimeline() + weekPlanCard + subjectGridHtml
-    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + courseCard + msCard + `
+    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + deficitCard + courseCard + msCard + `
     <div class="card">
       <div class="card-title">📈 近14天学习时长</div>
       <canvas id="exam-trend" class="chart"></canvas>
