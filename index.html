@@ -86,15 +86,6 @@
     .task-link-open:hover { text-decoration: underline; }
     .task-link-act { cursor: pointer; color: var(--text-secondary); font-size: 13px; padding: 0 2px; }
     .task-link-act:hover { color: #e74c3c; }
-    .task-app { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 6px; font-size: 12px; flex-wrap: wrap; }
-    .task-app-btn { background: rgba(243,131,44,.14); color: var(--primary); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
-    .task-app-btn:active { transform: scale(.96); }
-    .task-app-btn.ghost { background: transparent; color: var(--text-secondary); }
-    .app-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
-    .app-pick-btn { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; }
-    .app-pick-btn:active { transform: scale(.96); }
-    .app-del { color: var(--text-secondary); font-size: 11px; padding: 0 2px; }
-    .app-del:hover { color: #e74c3c; }
     .task-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
     .task-check.checked { background: var(--primary); color: white; }
     .task-text { flex: 1; cursor: pointer; border-radius: 6px; padding: 2px 4px; transition: background .15s; }
@@ -702,27 +693,6 @@
     </div>
   </div>
 
-  <!-- 跳转 App 预设 -->
-  <div class="modal-overlay" id="app-picker-modal" onclick="if(event.target===this) closeAppPicker()">
-    <div class="modal">
-      <h3>📱 点这条任务跳转到哪个 App</h3>
-      <div class="card-sub">选好后会记住，下次点按钮直接跳转；跳转到 App 首页。</div>
-      <div class="app-picker-grid" id="app-picker-list"></div>
-      <button class="btn btn-secondary btn-block" id="app-add-toggle" style="margin-top:10px" onclick="openAppAddForm()">➕ 添加 App</button>
-      <div id="app-add-form" style="display:none;margin-top:10px">
-        <input class="input" id="app-add-name" placeholder="App 名称，如 番茄ToDo">
-        <input class="input" id="app-add-home" placeholder="首页链接，如 https://www.maimemo.com" style="margin-top:6px">
-        <input class="input" id="app-add-scheme" placeholder="唤起协议（可选），如 bilibili://" style="margin-top:6px">
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-primary" style="flex:1" onclick="confirmAddApp()">保存</button>
-          <button class="btn btn-secondary" style="flex:1" onclick="closeAppAddForm()">取消</button>
-        </div>
-      </div>
-      <button class="btn btn-secondary btn-block" style="margin-top:10px" onclick="clearAppPreset()">清除预设</button>
-      <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeAppPicker()">取消</button>
-    </div>
-  </div>
-
   <!-- PWA 安装引导 -->
   <div class="install-banner" id="install-banner" style="display:none">
     <div style="font-size:24px">📲</div>
@@ -815,13 +785,6 @@ const subjectConfig = {
     { key: 'key', name: '重点知识' },
     { key: 'must', name: '必背知识' }
   ]}
-};
-// 可一键跳转的 App：home 为 Universal/App Link 首页（顶层打开可唤起 App），scheme 为私有协议（尽量直启 App，失败回落 home）
-const APP_LAUNCH = {
-  quark: { name: '夸克网盘', icon: '🟦', home: 'https://pan.quark.cn', scheme: '' },
-  momo:  { name: '墨墨背单词', icon: '📘', home: 'https://www.maimemo.com', scheme: '' },
-  bili:  { name: '哔哩哔哩', icon: '📺', home: 'https://www.bilibili.com', scheme: 'bilibili://' },
-  baidu: { name: '百度网盘', icon: '🔵', home: 'https://pan.baidu.com', scheme: '' }
 };
 
 // ================= 考研规划数据（来自复习计划） =================
@@ -972,7 +935,6 @@ function ensureState() {
   if (!state.studyRecords) state.studyRecords = [];
   if (!state.examStages) state.examStages = {};
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
-  if (!state.appLaunch) state.appLaunch = {};
   if (!state.weeklyReview) state.weeklyReview = {};
   if (!state.mockSets) state.mockSets = { math: 0, cs408: 0 };
   if (!state.deficits) state.deficits = { weekly: {}, daily: {}, _wk: 0, _day: '' };
@@ -1187,15 +1149,11 @@ function generateDailyTasks() {
   const dow = new Date().getDay(); // 0=周日 .. 6=周六
   const isWeekend = (dow === 0 || dow === 6);
   const wkTag = '（推进第' + st.weekNum + '周）';
-  // 昨天各任务链接/跳转App映射（按归一化文本匹配，忽略“推进第N周”后缀），新的一天默认沿用
-  const yLinkMap = {}, yAppMap = {};
-  histTasks(dateStr(new Date(Date.now() - 86400000))).forEach(h => {
-    const k = normTaskText(h.text);
-    if (h.link) yLinkMap[k] = h.link;
-    if (h.app) yAppMap[k] = h.app;
-  });
+  // 昨天各任务链接映射（按归一化文本匹配，忽略“推进第N周”后缀），新的一天默认沿用
+  const yLinkMap = {};
+  histTasks(dateStr(new Date(Date.now() - 86400000))).forEach(h => { if (h.link) yLinkMap[normTaskText(h.text)] = h.link; });
   // 按规划预设每条任务的时长（分钟），区分周中 / 周末；target>0 才会显示时间条
-  const mk = (text, target) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false, target: target || 0, logged: 0, link: yLinkMap[normTaskText(text)] || '', app: yAppMap[normTaskText(text)] || '' });
+  const mk = (text, target) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false, target: target || 0, logged: 0, link: yLinkMap[normTaskText(text)] || '' });
   if (isWeekend) {
     const arr = [
       mk('数学·张宇 看课 3 节（上午整块时间）' + wkTag, 180),
@@ -1222,12 +1180,12 @@ function generateTodayPlan() {
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
 }
 function updateDailySnapshot() {
-  state.dailyHistory[todayStr()] = state.tasks.map(t => ({ text: t.text, done: !!t.done, link: t.link || '', app: t.app || '' }));
+  state.dailyHistory[todayStr()] = state.tasks.map(t => ({ text: t.text, done: !!t.done, link: t.link || '' }));
 }
-// 兼容旧数据（历史里存的是字符串），统一返回 {text, done, link, app}
+// 兼容旧数据（历史里存的是字符串），统一返回 {text, done, link}
 function histTasks(ds) {
   const arr = state.dailyHistory[ds] || [];
-  return arr.map(t => (typeof t === 'string' ? { text: t, done: true, link: '', app: '' } : { text: t.text, done: !!t.done, link: t.link || '', app: t.app || '' }));
+  return arr.map(t => (typeof t === 'string' ? { text: t, done: true, link: '' } : { text: t.text, done: !!t.done, link: t.link || '' }));
 }
 function copyYesterdayTasks() {
   const y = new Date(Date.now() - 86400000);
@@ -1238,7 +1196,7 @@ function copyYesterdayTasks() {
   let added = 0;
   src.forEach(t => {
     if (exist.has(t.text)) return; // 避免重复
-    state.tasks.push({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text: t.text, done: false, target: 0, logged: 0, link: t.link || '', app: t.app || '' });
+    state.tasks.push({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text: t.text, done: false, target: 0, logged: 0, link: t.link || '' });
     added++;
   });
   saveState(); schedulePush(); renderDaily();
@@ -1274,21 +1232,10 @@ function renderDaily() {
         <span class="task-link-act" onclick="clearTaskLink('${t.id}')" title="清除链接">✕</span>
       </div>`;
     }
-    // 每任务一个「跳转 App」按钮：已预设则直接跳，未预设则点开选择；✎ 可改预设
-    let appRow = '';
-    const appDef = t.app ? getAppLaunch(t.app) : null;
-    if (appDef) {
-      appRow = `<div class="task-app">
-        <button class="task-app-btn" onclick="launchTaskApp('${t.id}')" title="跳转到${appDef.name}首页">📱 ${appDef.name}</button>
-        <span class="task-link-act" onclick="openAppPicker('${t.id}')" title="更改跳转的 App">✎</span>
-      </div>`;
-    } else {
-      appRow = `<div class="task-app"><button class="task-app-btn ghost" onclick="openAppPicker('${t.id}')" title="设置点击后跳转的 App">📱 设跳转App</button></div>`;
-    }
     div.innerHTML = `
       <div class="task-check ${t.done ? 'checked' : ''}" onclick="toggleTask('${t.id}')">${t.done ? '✓' : ''}</div>
       <div class="task-text ${t.done ? 'done' : ''}" onclick="editTask('${t.id}')" title="点击修改">${escapeHtml(t.text)}</div>
-      <div class="task-del" onclick="deleteTask('${t.id}')">×</div>${timeRow}${linkRow}${appRow}`;
+      <div class="task-del" onclick="deleteTask('${t.id}')">×</div>${timeRow}${linkRow}`;
     list.appendChild(div);
   });
   renderTodayStudy();
@@ -1382,7 +1329,7 @@ function addTask() {
   const input = document.getElementById('new-task-input');
   const text = input.value.trim();
   if (!text) return;
-  state.tasks.push({ id: Date.now().toString(), text, done: false, target: 0, logged: 0, link: '', app: '' });
+  state.tasks.push({ id: Date.now().toString(), text, done: false, target: 0, logged: 0, link: '' });
   input.value = '';
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
 }
@@ -1409,115 +1356,6 @@ function clearTaskLink(id) {
   t.link = '';
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
 }
-// 跳转 App：内置 APP_LAUNCH + 用户自定义 state.appLaunch 合并查找
-function getAppLaunch(key) {
-  return (APP_LAUNCH && APP_LAUNCH[key]) || (state.appLaunch && state.appLaunch[key]) || null;
-}
-// 跳转 App：优先用私有 scheme 直启（失败静默），超时则顶层打开首页触发 Universal/App Link 唤起
-function launchApp(key) {
-  const app = getAppLaunch(key);
-  if (!app) return;
-  const goHome = () => { window.location.href = app.home; };
-  if (app.scheme) {
-    let wentAway = false;
-    const onHide = () => { wentAway = true; document.removeEventListener('visibilitychange', onHide); };
-    document.addEventListener('visibilitychange', onHide);
-    const ifr = document.createElement('iframe');
-    ifr.style.display = 'none';
-    ifr.src = app.scheme;
-    document.body.appendChild(ifr);
-    setTimeout(() => {
-      try { document.body.removeChild(ifr); } catch (e) {}
-      document.removeEventListener('visibilitychange', onHide);
-      if (!wentAway) goHome(); // App 没起来 → 打开首页兜底
-    }, 1000);
-  } else {
-    goHome();
-  }
-}
-function launchTaskApp(id) {
-  const t = state.tasks.find(x => x.id === id);
-  if (!t) return;
-  if (t.app && APP_LAUNCH[t.app]) launchApp(t.app);
-  else openAppPicker(id);
-}
-let _appPickerTaskId = '';
-function openAppPicker(id) {
-  _appPickerTaskId = id;
-  const t = state.tasks.find(x => x.id === id);
-  renderAppPickerList(t ? t.app : '');
-  const m = document.getElementById('app-picker-modal');
-  if (m) m.classList.add('show');
-  focusModalFirst('app-picker-modal');
-}
-function renderAppPickerList(current) {
-  const wrap = document.getElementById('app-picker-list');
-  if (!wrap) return;
-  const cur = current || '';
-  const all = Object.assign({}, APP_LAUNCH, state.appLaunch || {});
-  wrap.innerHTML = Object.keys(all).map(k => {
-    const a = all[k];
-    const active = (k === cur) ? ' style="border-color:var(--primary);background:var(--primary-light)"' : '';
-    const isCustom = !!(state.appLaunch && state.appLaunch[k]);
-    const del = isCustom ? ` <span class="app-del" onclick="event.stopPropagation();removeCustomApp('${k}')" title="删除该自定义 App">✕</span>` : '';
-    return `<button class="app-pick-btn"${active} onclick="pickApp('${k}')">${a.icon || '📦'} ${a.name}${del}</button>`;
-  }).join('');
-}
-function pickApp(key) {
-  const m = document.getElementById('app-picker-modal');
-  if (m) m.classList.remove('show');
-  const t = state.tasks.find(x => x.id === _appPickerTaskId);
-  if (t) { t.app = key; updateDailySnapshot(); saveState(); schedulePush(); renderDaily(); }
-  launchApp(key);
-}
-function openAppAddForm() {
-  const f = document.getElementById('app-add-form');
-  const tg = document.getElementById('app-add-toggle');
-  if (f) f.style.display = 'block';
-  if (tg) tg.style.display = 'none';
-  const n = document.getElementById('app-add-name');
-  if (n) { n.value = ''; setTimeout(() => n.focus(), 30); }
-  const h = document.getElementById('app-add-home'); if (h) h.value = '';
-  const s = document.getElementById('app-add-scheme'); if (s) s.value = '';
-}
-function closeAppAddForm() {
-  const f = document.getElementById('app-add-form');
-  const tg = document.getElementById('app-add-toggle');
-  if (f) f.style.display = 'none';
-  if (tg) tg.style.display = 'block';
-}
-function confirmAddApp() {
-  const name = (document.getElementById('app-add-name').value || '').trim();
-  let home = (document.getElementById('app-add-home').value || '').trim();
-  const scheme = (document.getElementById('app-add-scheme').value || '').trim();
-  if (!name) { toast('请填写 App 名称'); return; }
-  if (!home) { toast('请填写首页链接'); return; }
-  if (!/^https?:\/\//i.test(home)) home = 'https://' + home;
-  const key = 'u_' + Date.now().toString(36);
-  state.appLaunch = state.appLaunch || {};
-  state.appLaunch[key] = { name, icon: '📦', home, scheme: scheme || '' };
-  saveState();
-  closeAppAddForm();
-  renderAppPickerList(key);
-  toast('已添加：' + name);
-}
-function removeCustomApp(key) {
-  if (!state.appLaunch || !state.appLaunch[key]) return;
-  delete state.appLaunch[key];
-  state.tasks.forEach(t => { if (t.app === key) t.app = ''; });
-  saveState();
-  renderAppPickerList((state.tasks.find(x => x.id === _appPickerTaskId) || {}).app || '');
-  renderDaily();
-  toast('已删除该自定义 App');
-}
-function clearAppPreset() {
-  const m = document.getElementById('app-picker-modal');
-  if (m) m.classList.remove('show');
-  const t = state.tasks.find(x => x.id === _appPickerTaskId);
-  if (t) { t.app = ''; updateDailySnapshot(); saveState(); schedulePush(); renderDaily(); }
-  toast('已清除跳转预设');
-}
-function closeAppPicker() { const m = document.getElementById('app-picker-modal'); if (m) m.classList.remove('show'); }
 function inferSubject(text) {
   if (/数学|张宇|高数|线代|概率/.test(text)) return 'math';
   if (/408|王道|计算机|数据结构|计组|操作系统|网络/.test(text)) return 'cs408';
@@ -3976,7 +3814,7 @@ document.addEventListener('click', e => {
   if (sheet && sheet.classList.contains('show') && !sheet.contains(e.target) && e.target.id !== 'fab') sheet.classList.remove('show');
 });
 // 弹窗：Esc 关闭 + Tab 焦点锁定在当前弹窗内（减少误操作与界面跳动）
-const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal', 'review-rating-modal', 'collect-share-modal', 'app-picker-modal'];
+const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal', 'review-rating-modal', 'collect-share-modal'];
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     let closed = false;
