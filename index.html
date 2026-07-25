@@ -93,6 +93,8 @@
     .app-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
     .app-pick-btn { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; }
     .app-pick-btn:active { transform: scale(.96); }
+    .app-del { color: var(--text-secondary); font-size: 11px; padding: 0 2px; }
+    .app-del:hover { color: #e74c3c; }
     .task-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
     .task-check.checked { background: var(--primary); color: white; }
     .task-text { flex: 1; cursor: pointer; border-radius: 6px; padding: 2px 4px; transition: background .15s; }
@@ -706,6 +708,16 @@
       <h3>📱 点这条任务跳转到哪个 App</h3>
       <div class="card-sub">选好后会记住，下次点按钮直接跳转；跳转到 App 首页。</div>
       <div class="app-picker-grid" id="app-picker-list"></div>
+      <button class="btn btn-secondary btn-block" id="app-add-toggle" style="margin-top:10px" onclick="openAppAddForm()">➕ 添加 App</button>
+      <div id="app-add-form" style="display:none;margin-top:10px">
+        <input class="input" id="app-add-name" placeholder="App 名称，如 番茄ToDo">
+        <input class="input" id="app-add-home" placeholder="首页链接，如 https://www.maimemo.com" style="margin-top:6px">
+        <input class="input" id="app-add-scheme" placeholder="唤起协议（可选），如 bilibili://" style="margin-top:6px">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary" style="flex:1" onclick="confirmAddApp()">保存</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="closeAppAddForm()">取消</button>
+        </div>
+      </div>
       <button class="btn btn-secondary btn-block" style="margin-top:10px" onclick="clearAppPreset()">清除预设</button>
       <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeAppPicker()">取消</button>
     </div>
@@ -806,18 +818,10 @@ const subjectConfig = {
 };
 // 可一键跳转的 App：home 为 Universal/App Link 首页（顶层打开可唤起 App），scheme 为私有协议（尽量直启 App，失败回落 home）
 const APP_LAUNCH = {
-  quark:       { name: '夸克网盘', icon: '🟦', home: 'https://pan.quark.cn', scheme: '' },
-  baidu:       { name: '百度网盘', icon: '🔵', home: 'https://pan.baidu.com', scheme: '' },
-  aliyun:      { name: '阿里云盘', icon: '🟠', home: 'https://www.aliyundrive.com', scheme: '' },
-  bili:        { name: '哔哩哔哩', icon: '📺', home: 'https://www.bilibili.com', scheme: 'bilibili://' },
-  douyin:      { name: '抖音', icon: '🎵', home: 'https://www.douyin.com', scheme: 'snssdk1128://' },
-  xiaohongshu: { name: '小红书', icon: '📕', home: 'https://www.xiaohongshu.com', scheme: 'xhsdiscover://' },
-  weibo:       { name: '微博', icon: '🔶', home: 'https://weibo.com', scheme: 'sinaweibo://' },
-  zhihu:       { name: '知乎', icon: '🔷', home: 'https://www.zhihu.com', scheme: 'zhihu://' },
-  weixin:      { name: '微信', icon: '💬', home: 'https://weixin.qq.com', scheme: 'weixin://' },
-  youtube:     { name: 'YouTube', icon: '▶️', home: 'https://www.youtube.com', scheme: 'youtube://' },
-  youdao:      { name: '有道词典', icon: '📖', home: 'https://www.youdao.com', scheme: '' },
-  cctalk:      { name: 'CCtalk', icon: '🎓', home: 'https://www.cctalk.com', scheme: '' }
+  quark: { name: '夸克网盘', icon: '🟦', home: 'https://pan.quark.cn', scheme: '' },
+  momo:  { name: '墨墨背单词', icon: '📘', home: 'https://www.maimemo.com', scheme: '' },
+  bili:  { name: '哔哩哔哩', icon: '📺', home: 'https://www.bilibili.com', scheme: 'bilibili://' },
+  baidu: { name: '百度网盘', icon: '🔵', home: 'https://pan.baidu.com', scheme: '' }
 };
 
 // ================= 考研规划数据（来自复习计划） =================
@@ -968,6 +972,7 @@ function ensureState() {
   if (!state.studyRecords) state.studyRecords = [];
   if (!state.examStages) state.examStages = {};
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
+  if (!state.appLaunch) state.appLaunch = {};
   if (!state.weeklyReview) state.weeklyReview = {};
   if (!state.mockSets) state.mockSets = { math: 0, cs408: 0 };
   if (!state.deficits) state.deficits = { weekly: {}, daily: {}, _wk: 0, _day: '' };
@@ -1271,7 +1276,7 @@ function renderDaily() {
     }
     // 每任务一个「跳转 App」按钮：已预设则直接跳，未预设则点开选择；✎ 可改预设
     let appRow = '';
-    const appDef = t.app ? APP_LAUNCH[t.app] : null;
+    const appDef = t.app ? getAppLaunch(t.app) : null;
     if (appDef) {
       appRow = `<div class="task-app">
         <button class="task-app-btn" onclick="launchTaskApp('${t.id}')" title="跳转到${appDef.name}首页">📱 ${appDef.name}</button>
@@ -1404,9 +1409,13 @@ function clearTaskLink(id) {
   t.link = '';
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
 }
+// 跳转 App：内置 APP_LAUNCH + 用户自定义 state.appLaunch 合并查找
+function getAppLaunch(key) {
+  return (APP_LAUNCH && APP_LAUNCH[key]) || (state.appLaunch && state.appLaunch[key]) || null;
+}
 // 跳转 App：优先用私有 scheme 直启（失败静默），超时则顶层打开首页触发 Universal/App Link 唤起
 function launchApp(key) {
-  const app = APP_LAUNCH[key];
+  const app = getAppLaunch(key);
   if (!app) return;
   const goHome = () => { window.location.href = app.home; };
   if (app.scheme) {
@@ -1445,10 +1454,13 @@ function renderAppPickerList(current) {
   const wrap = document.getElementById('app-picker-list');
   if (!wrap) return;
   const cur = current || '';
-  wrap.innerHTML = Object.keys(APP_LAUNCH).map(k => {
-    const a = APP_LAUNCH[k];
+  const all = Object.assign({}, APP_LAUNCH, state.appLaunch || {});
+  wrap.innerHTML = Object.keys(all).map(k => {
+    const a = all[k];
     const active = (k === cur) ? ' style="border-color:var(--primary);background:var(--primary-light)"' : '';
-    return `<button class="app-pick-btn"${active} onclick="pickApp('${k}')">${a.icon} ${a.name}</button>`;
+    const isCustom = !!(state.appLaunch && state.appLaunch[k]);
+    const del = isCustom ? ` <span class="app-del" onclick="event.stopPropagation();removeCustomApp('${k}')" title="删除该自定义 App">✕</span>` : '';
+    return `<button class="app-pick-btn"${active} onclick="pickApp('${k}')">${a.icon || '📦'} ${a.name}${del}</button>`;
   }).join('');
 }
 function pickApp(key) {
@@ -1457,6 +1469,46 @@ function pickApp(key) {
   const t = state.tasks.find(x => x.id === _appPickerTaskId);
   if (t) { t.app = key; updateDailySnapshot(); saveState(); schedulePush(); renderDaily(); }
   launchApp(key);
+}
+function openAppAddForm() {
+  const f = document.getElementById('app-add-form');
+  const tg = document.getElementById('app-add-toggle');
+  if (f) f.style.display = 'block';
+  if (tg) tg.style.display = 'none';
+  const n = document.getElementById('app-add-name');
+  if (n) { n.value = ''; setTimeout(() => n.focus(), 30); }
+  const h = document.getElementById('app-add-home'); if (h) h.value = '';
+  const s = document.getElementById('app-add-scheme'); if (s) s.value = '';
+}
+function closeAppAddForm() {
+  const f = document.getElementById('app-add-form');
+  const tg = document.getElementById('app-add-toggle');
+  if (f) f.style.display = 'none';
+  if (tg) tg.style.display = 'block';
+}
+function confirmAddApp() {
+  const name = (document.getElementById('app-add-name').value || '').trim();
+  let home = (document.getElementById('app-add-home').value || '').trim();
+  const scheme = (document.getElementById('app-add-scheme').value || '').trim();
+  if (!name) { toast('请填写 App 名称'); return; }
+  if (!home) { toast('请填写首页链接'); return; }
+  if (!/^https?:\/\//i.test(home)) home = 'https://' + home;
+  const key = 'u_' + Date.now().toString(36);
+  state.appLaunch = state.appLaunch || {};
+  state.appLaunch[key] = { name, icon: '📦', home, scheme: scheme || '' };
+  saveState();
+  closeAppAddForm();
+  renderAppPickerList(key);
+  toast('已添加：' + name);
+}
+function removeCustomApp(key) {
+  if (!state.appLaunch || !state.appLaunch[key]) return;
+  delete state.appLaunch[key];
+  state.tasks.forEach(t => { if (t.app === key) t.app = ''; });
+  saveState();
+  renderAppPickerList((state.tasks.find(x => x.id === _appPickerTaskId) || {}).app || '');
+  renderDaily();
+  toast('已删除该自定义 App');
 }
 function clearAppPreset() {
   const m = document.getElementById('app-picker-modal');
