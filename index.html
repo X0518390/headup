@@ -309,6 +309,18 @@
     .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
     .setting-row label { font-size: 14px; }
     .icon-btn { background: none; border: none; cursor: pointer; padding: 8px; color: var(--text-secondary); }
+
+    /* 习惯链 / 作息熔断 / 兴趣银行 / 合法休息日 */
+    .habit-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+    .habit-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg, #fafafa); }
+    .habit-row.habit-done { background: rgba(91,140,81,.16); }
+    .habit-row.habit-bad { background: rgba(231,76,60,.14); }
+    .habit-name { font-size: 14px; font-weight: 600; }
+    .habit-streak { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+    .habit-status { white-space: nowrap; }
+    .sleep-guard-bad { border-left: 4px solid #e74c3c; }
+    .sleep-guard-ok { border-left: 4px solid #5b8c51; }
+    .alert-banner.sleep-bad { background: #4a2520; color: #ff8a80; }
   </style>
 </head>
 <body>
@@ -964,6 +976,10 @@ function ensureState() {
   if (state.hobbyBank === undefined) state.hobbyBank = 0;
   if (state.bankCreditedWeek === undefined) state.bankCreditedWeek = 0;
   if (!state.hobbyCheckins) state.hobbyCheckins = [];
+  if (!state.habits) state.habits = defaultHabits();
+  if (!state.habitChecks) state.habitChecks = {};
+  if (!state.restDays) state.restDays = {};
+  if (state._habitEditorOpen === undefined) state._habitEditorOpen = false;
   if (!state.settings.autoPlan && state.settings.autoPlan !== false) state.settings.autoPlan = true;
   if (state.settings.weekdayGoal === undefined) state.settings.weekdayGoal = state.settings.studyGoal || 240;
   if (state.settings.weekendGoal === undefined) state.settings.weekendGoal = Math.round((state.settings.studyGoal || 240) * 1.25);
@@ -2403,6 +2419,7 @@ function recordSleep() {
   rec.duration = rec.wake ? calcDuration(rec.sleep, rec.wake) : '';
   rec.durationMin = rec.wake ? durationMin(rec.sleep, rec.wake) : 0;
   saveState(); schedulePush(); renderHabits();
+  if (state.view === 'daily') renderDaily();
   alert(`已记录睡觉时间：${time}`);
 }
 function recordWake() {
@@ -2414,6 +2431,7 @@ function recordWake() {
   rec.duration = calcDuration(rec.sleep, rec.wake);
   rec.durationMin = durationMin(rec.sleep, rec.wake);
   saveState(); schedulePush(); renderHabits();
+  if (state.view === 'daily') renderDaily();
   fetchWeather();
   alert(`已记录起床时间：${time}，睡眠时长：${rec.duration}`);
 }
@@ -2540,6 +2558,8 @@ function finishPomodoro(early) {
     }
   }
   state.pomo = null;
+  // 兴趣银行：每完成一个番茄钟即时攒「兴趣时间」（分钟）
+  state.hobbyBank = (state.hobbyBank || 0) + BANK_PER_POMO;
   // 任务状态变化后同步到「完成日历」快照，并刷新每日视图（若正在看）
   updateDailySnapshot();
   saveState(); schedulePush();
@@ -3210,6 +3230,200 @@ function recommendNow() {
   if (undone.length) act += `（今日还有 ${undone.length} 项待完成）`;
   return act;
 }
+// ================= 习惯链 / 作息熔断 / 兴趣银行 / 合法休息日 =================
+const BANK_PER_POMO = 8; // 每完成一个番茄钟即时攒入「兴趣银行」的分钟数
+function defaultHabits() {
+  return [
+    { id: 'h_nolate', name: '不熬夜', kind: 'sleep', icon: '🌙' },
+    { id: 'h_words', name: '背单词', kind: 'manual', icon: '📚' },
+    { id: 'h_pomo', name: '完成2个番茄钟', kind: 'pomo', target: 2, icon: '🍅' }
+  ];
+}
+// 某天某习惯是否满足（休息日视为满足，不破链）
+function habitSatOn(h, ds) {
+  if (state.restDays[ds]) return true;
+  if (h.kind === 'manual') return !!(state.habitChecks[ds] && state.habitChecks[ds][h.id]);
+  if (h.kind === 'sleep') {
+    const rec = (state.habit.records || []).find(r => r.date === ds);
+    if (!rec || !rec.sleep) return null; // 尚未记录
+    const bt = state.settings.bedTime || '23:30';
+    const [bh, bm] = bt.split(':').map(Number);
+    const bedMin = bh * 60 + bm + 30; // 宽限 30 分钟
+    let [sh, sm] = rec.sleep.split(':').map(Number);
+    let s = sh * 60 + sm; if (s < 360) s += 1440;
+    return s <= bedMin;
+  }
+  if (h.kind === 'pomo') {
+    const n = (state.lifeRecords || []).filter(r => r.date === ds).length;
+    return n >= (h.target || 1);
+  }
+  return null;
+}
+function isHabitSatisfied(h) {
+  if (typeof h === 'string') h = (state.habits || []).find(x => x.id === h);
+  if (!h) return null;
+  if (h.kind === 'pomo') {
+    const n = (state.lifeRecords || []).filter(r => r.date === todayStr()).length;
+    if (n >= (h.target || 1)) return true;
+    if (n > 0) return 'partial';
+    return false;
+  }
+  return habitSatOn(h, todayStr());
+}
+// 连续打卡天数：今天若未完成仍给宽限（不立刻断链），从昨天往回数
+function habitStreak(id) {
+  const h = (state.habits || []).find(x => x.id === id); if (!h) return 0;
+  let streak = 0; const d = new Date(); d.setHours(0,0,0,0);
+  const todayS = dateStr(d);
+  if (habitSatOn(h, todayS)) { streak++; d.setDate(d.getDate() - 1); }
+  while (true) {
+    const ds = dateStr(d);
+    if (habitSatOn(h, ds)) { streak++; d.setDate(d.getDate() - 1); }
+    else {
+      if (ds === todayS) { d.setDate(d.getDate() - 1); continue; }
+      break;
+    }
+  }
+  return streak;
+}
+function toggleHabit(id) {
+  const h = (state.habits || []).find(x => x.id === id);
+  if (!h || h.kind !== 'manual') return;
+  const t = todayStr();
+  if (!state.habitChecks[t]) state.habitChecks[t] = {};
+  state.habitChecks[t][id] = !state.habitChecks[t][id];
+  saveState(); schedulePush();
+  if (state.view === 'daily') renderDaily();
+}
+function toggleRestDay() {
+  const t = todayStr();
+  if (state.restDays[t]) delete state.restDays[t]; else state.restDays[t] = true;
+  saveState(); schedulePush();
+  if (state.view === 'daily') renderDaily();
+}
+function toggleHabitEditor() {
+  state._habitEditorOpen = !state._habitEditorOpen;
+  if (state.view === 'daily') renderDaily();
+}
+function addHabit() {
+  const name = (document.getElementById('new-habit-name').value || '').trim();
+  const icon = (document.getElementById('new-habit-icon').value || '').trim() || '⭐';
+  const kind = document.getElementById('new-habit-kind').value;
+  const target = parseInt(document.getElementById('new-habit-target').value, 10) || 1;
+  if (!name) { toast('请输入习惯名称'); return; }
+  state.habits.push({ id: 'h_' + Date.now().toString(36), name, kind, icon, target: kind === 'pomo' ? target : undefined });
+  saveState(); schedulePush();
+  if (state.view === 'daily') renderDaily();
+  toast('已添加习惯：' + name);
+}
+function removeHabit(id) {
+  state.habits = (state.habits || []).filter(h => h.id !== id);
+  saveState(); schedulePush();
+  if (state.view === 'daily') renderDaily();
+}
+function renderHabitChain() {
+  const t = todayStr();
+  const rest = !!state.restDays[t];
+  const rows = (state.habits || []).map(h => {
+    const st = isHabitSatisfied(h);
+    let statusHtml, cls;
+    if (h.kind === 'manual') {
+      const done = !!st;
+      cls = done ? 'habit-done' : 'habit-todo';
+      statusHtml = `<button class="btn btn-small ${done ? 'btn-primary' : 'btn-secondary'}" onclick="toggleHabit('${h.id}')">${done ? '✅ 已完成' : '○ 打卡'}</button>`;
+    } else if (h.kind === 'sleep') {
+      if (st === null) { cls = 'habit-todo'; statusHtml = '⏳ 待记录'; }
+      else if (st) { cls = 'habit-done'; statusHtml = '🌙 已早睡'; }
+      else { cls = 'habit-bad'; statusHtml = '🌃 熬夜了'; }
+    } else {
+      const n = (state.lifeRecords || []).filter(r => r.date === t).length;
+      const tg = h.target || 1;
+      if (st === true) { cls = 'habit-done'; statusHtml = '🍅 达标 ' + n + '/' + tg; }
+      else if (st === 'partial') { cls = 'habit-todo'; statusHtml = '🍅 ' + n + '/' + tg; }
+      else { cls = 'habit-todo'; statusHtml = '🍅 0/' + tg; }
+    }
+    const streak = habitStreak(h.id);
+    return `<div class="habit-row ${cls}">
+      <div class="habit-name">${h.icon} ${escapeHtml(h.name)}</div>
+      <div class="habit-streak">🔥 ${streak}</div>
+      <div class="habit-status">${statusHtml}</div>
+    </div>`;
+  }).join('');
+  const editorHidden = state._habitEditorOpen ? '' : 'hidden';
+  const editorList = (state.habits || []).map(h => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:4px 0"><span>${h.icon} ${escapeHtml(h.name)}</span><button class="btn btn-small btn-danger" onclick="removeHabit('${h.id}')">✕</button></div>`).join('');
+  const editor = `<div id="habit-editor" class="${editorHidden}" style="margin-top:10px;border-top:1px dashed var(--border,#ddd);padding-top:10px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">我的习惯（可增删）</div>
+    ${editorList}
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <input class="input" id="new-habit-name" placeholder="习惯名" style="flex:1;min-width:90px">
+      <input class="input" id="new-habit-icon" placeholder="图标" style="max-width:64px" value="⭐">
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:flex-end">
+      <select class="input" id="new-habit-kind">
+        <option value="manual">手动打卡</option>
+        <option value="pomo">番茄数</option>
+        <option value="sleep">不熬夜(睡眠)</option>
+      </select>
+      <input class="input" id="new-habit-target" type="number" min="1" placeholder="目标数" style="max-width:84px">
+      <button class="btn btn-primary btn-small" onclick="addHabit()">添加</button>
+    </div>
+  </div>`;
+  return `<div class="card">
+    <div class="card-title">🔥 习惯链 ${rest ? '· 😌 休息日' : ''}</div>
+    <div class="card-sub">连续打卡不断链，专治不想动 💪</div>
+    ${rest ? `<div class="alert-banner" style="margin-bottom:8px">😌 今天合法休息，习惯不破链，明天再战！</div>` : ''}
+    <div class="habit-list">${rows}</div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-small ${rest ? 'btn-primary' : 'btn-secondary'}" onclick="toggleRestDay()">😌 ${rest ? '取消休息日' : '今天合法休息'}</button>
+      <button class="btn btn-small btn-secondary" onclick="toggleHabitEditor()">⚙ 管理习惯</button>
+    </div>
+    ${editor}
+  </div>`;
+}
+function renderSleepGuard() {
+  const t = todayStr();
+  const rec = (state.habit.records || []).find(r => r.date === t);
+  const after = isAfterBedtime();
+  const cd = bedtimeCountdown();
+  const lateN = lateNightCount(30);
+  const banner = after ? `<div class="alert-banner sleep-bad" style="margin-top:8px">🌙 熔断：已过就寝时间，今天到此为止，去睡！😴</div>` : '';
+  return `<div class="card ${after ? 'sleep-guard-bad' : 'sleep-guard-ok'}">
+    <div class="card-title">🌙 作息熔断</div>
+    <div class="card-sub">理想就寝 ${state.settings.bedTime || '23:30'} · 距就寝 <b>${cd}</b>${after ? '（已超时）' : ''}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-small ${rec && rec.sleep ? 'btn-secondary' : 'btn-primary'}" onclick="recordSleep()">🌙 ${rec && rec.sleep ? ('已记录 ' + rec.sleep) : '我睡了'}</button>
+      <button class="btn btn-small btn-secondary" onclick="recordWake()">☀️ 我起了</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-top:8px">近30天熬夜 <b style="color:${lateN ? '#e74c3c' : 'inherit'}">${lateN}</b> 次</div>
+    ${banner}
+  </div>`;
+}
+function renderInterestBank() {
+  const bal = state.hobbyBank || 0;
+  const rate = BANK_PER_POMO;
+  const rewardH = state.settings.rewardHours || 3;
+  const hobbies = [['🎸','吉他'],['📷','摄影'],['💃','跳舞'],['🧘','瑜伽'],['✂️','剪辑']];
+  const btns = hobbies.map(([ic, nm]) => `<button class="btn btn-small btn-secondary" onclick="redeemHobby('${nm}')">${ic} ${nm}30分</button>`).join('');
+  return `<div class="card">
+    <div class="card-title">🎸 兴趣银行</div>
+    <div class="card-sub">完成任务攒「兴趣时间」，兑换你的爱好 💡</div>
+    <div style="display:flex;gap:12px;align-items:center;margin:6px 0">
+      <div style="font-size:26px;font-weight:800;color:var(--primary)">${bal} 分钟</div>
+      <div style="font-size:12px;color:var(--text-secondary)">每完成1个番茄 +${rate}分<br>每周达标再 +${rewardH}小时</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">${btns}</div>
+  </div>`;
+}
+function redeemHobby(name) {
+  if ((state.hobbyBank || 0) < 30) { toast('兴趣时间不足30分钟，先去完成番茄赚一些吧 💪'); return; }
+  state.hobbyBank -= 30;
+  const t = todayStr();
+  if (!state.hobbyCheckins.includes(t)) state.hobbyCheckins.push(t);
+  saveState(); schedulePush();
+  if (state.view === 'daily') renderDaily();
+  toast('🎉 已兑换 ' + name + ' 30分钟，余额 ' + state.hobbyBank + ' 分钟');
+}
+
 function renderDashboard() {
   const el = document.getElementById('dashboard');
   if (!el) return;
@@ -3322,7 +3536,10 @@ function renderDashboard() {
       <div class="card-sub">睡&lt;6h的日子（${sl.shortN}天）次日平均学 <b>${fmtMin(sl.shortAvg)}</b>；睡≥6h（${sl.longN}天）平均 <b>${fmtMin(sl.longAvg)}</b>。<br>${diff > 0 ? '多睡一点，第二天能多学 ' + fmtMin(diff) + '，早睡真的值得 💤' : '数据还不够明显，继续记录看看～'}</div>
     </div>`;
   }
-  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
+  const habitChainCard = renderHabitChain();
+  const sleepGuardCard = renderSleepGuard();
+  const interestBankCard = renderInterestBank();
+  el.innerHTML = alert + recCard + sleepGuardCard + habitChainCard + interestBankCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
       <div class="dash-card"><div class="dash-num">${fmtMin(todayStudy)}</div><div class="dash-label">今日学习</div></div>
