@@ -327,6 +327,22 @@
           <div class="section-title">🎨 兴趣爱好</div>
           <div class="hobby-grid" id="hobby-grid"></div>
           <div class="card" style="margin-top:16px">
+            <div class="card-title">➕ 添加收藏</div>
+            <div class="card-sub">统一在这里收藏，选好项目和分类即可</div>
+            <div class="form-row" style="align-items:flex-end">
+              <select class="input" id="collect-hobby-select" onchange="onCollectHobbyChange()"><option value="">— 选择项目 —</option></select>
+            </div>
+            <div class="form-row" style="align-items:flex-end">
+              <select class="input" id="collect-cat-select"></select>
+              <input class="input" id="collect-new-cat" placeholder="或填新分类">
+            </div>
+            <div class="form-row"><input class="input" id="collect-link" placeholder="链接（可选）"></div>
+            <div class="form-row"><textarea class="textarea" id="collect-text" placeholder="文本/备注"></textarea></div>
+            <div class="form-row"><input type="file" class="input" id="collect-media" accept="image/*,video/*"></div>
+            <label class="dropzone" id="collect-drop">📎 把截图/视频拖到这里自动添加</label>
+            <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="addCollectItem()">保存收藏</button>
+          </div>
+          <div class="card" style="margin-top:16px">
             <div class="card-title">🎡 兴趣转盘</div>
             <div class="card-sub">不知道玩啥？转一转，每个项目概率均等</div>
             <div class="wheel-wrap">
@@ -362,15 +378,6 @@
           <div class="back-btn" onclick="backToHobbies()">← 返回项目</div>
           <div class="section-title" id="hobby-title"></div>
           <div class="category-list" id="hobby-categories"></div>
-          <div class="card" id="hobby-add-card">
-            <div class="card-title">添加收藏</div>
-            <div class="form-row"><select class="input" id="hobby-cat-select"></select></div>
-            <div class="form-row"><input class="input" id="hobby-link" placeholder="链接（可选）"></div>
-            <div class="form-row"><textarea class="textarea" id="hobby-text" placeholder="文本/备注"></textarea></div>
-            <div class="form-row"><input type="file" class="input" id="hobby-media" accept="image/*,video/*"></div>
-            <label class="dropzone" id="hobby-drop">📎 把截图/视频拖到这里自动添加</label>
-            <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="addHobbyItem()">保存</button>
-          </div>
           <div id="hobby-items"></div>
         </div>
       </div>
@@ -1564,17 +1571,23 @@ function renderHobbies() {
     if ([...sel.options].some(o => o.value === prevSel)) sel.value = prevSel;
     renderManageCatSelect(sel.value);
     drawWheel();
+    // 统一添加收藏：联动下拉 + 拖拽
+    const csel = document.getElementById('collect-hobby-select');
+    if (csel) {
+      const cprev = csel.value;
+      csel.innerHTML = '<option value="">— 选择项目 —</option>' + state.hobbies.map(h => `<option value="${h.id}">${h.icon} ${h.name}</option>`).join('');
+      if ([...csel.options].some(o => o.value === cprev)) csel.value = cprev;
+      onCollectHobbyChange();
+      bindCollectDrop();
+    }
   } else {
     const h = state.hobbies.find(x => x.id === state.hobbyOpen);
     if (!h) return;
     document.getElementById('hobby-title').textContent = `${h.icon} ${h.name}`;
-    const catSelect = document.getElementById('hobby-cat-select');
-    catSelect.innerHTML = h.categories.map(c => `<option value="${c}">${c}</option>`).join('');
     const catList = document.getElementById('hobby-categories');
     catList.innerHTML = `<span class="category-tag active" data-cat="all" onclick="filterHobbyItems('all')">全部</span>` +
       h.categories.map(c => `<span class="category-tag" data-cat="${c}" onclick="filterHobbyItems('${c}')">${c}</span>`).join('');
     renderHobbyItems();
-    bindHobbyDrop(h);
     let ci = document.getElementById('hobby-checkin');
     if (!ci) { ci = document.createElement('div'); ci.id = 'hobby-checkin'; ci.className = 'card'; document.getElementById('hobby-detail').insertBefore(ci, document.getElementById('hobby-items')); }
     const canSpend = (state.hobbyBank || 0) >= 30;
@@ -1766,38 +1779,65 @@ function addHobbyCategory(hobbyId, input) {
   input.value = '';
   saveState(); schedulePush(); renderHobbies();
 }
-function addHobbyItem() {
-  const h = state.hobbies.find(x => x.id === state.hobbyOpen);
-  const category = document.getElementById('hobby-cat-select').value;
-  const link = document.getElementById('hobby-link').value.trim();
-  const text = document.getElementById('hobby-text').value.trim();
-  const file = document.getElementById('hobby-media').files[0];
+function onCollectHobbyChange() {
+  const hobbyId = document.getElementById('collect-hobby-select').value;
+  const catSel = document.getElementById('collect-cat-select');
+  if (!catSel) return;
+  const h = state.hobbies.find(x => x.id === hobbyId);
+  catSel.innerHTML = h && h.categories.length
+    ? h.categories.map(c => `<option value="${c}">${c}</option>`).join('')
+    : '<option value="">（无分类）</option>';
+}
+function addCollectItem() {
+  const hobbyId = document.getElementById('collect-hobby-select').value;
+  if (!hobbyId) { alert('请先选择项目'); return; }
+  const h = state.hobbies.find(x => x.id === hobbyId);
+  if (!h) return;
+  const sel = document.getElementById('collect-cat-select');
+  const newCat = document.getElementById('collect-new-cat').value.trim();
+  let category = newCat || (sel.value) || (h.categories[0] || '未分类');
+  if (newCat && !h.categories.includes(newCat)) h.categories.push(newCat);
+  const link = document.getElementById('collect-link').value.trim();
+  const text = document.getElementById('collect-text').value.trim();
+  const file = document.getElementById('collect-media').files[0];
   const save = (image, video) => {
-    state.hobbyItems.push({ id: Date.now().toString(), hobbyId: h.id, category, link, text, image, video });
-    saveState(); schedulePush(); renderHobbies();
-    document.getElementById('hobby-link').value = '';
-    document.getElementById('hobby-text').value = '';
-    document.getElementById('hobby-media').value = '';
+    state.hobbyItems.push({ id: Date.now().toString(), hobbyId, category, link, text, image, video });
+    saveState(); schedulePush();
+    document.getElementById('collect-link').value = '';
+    document.getElementById('collect-text').value = '';
+    document.getElementById('collect-media').value = '';
+    document.getElementById('collect-new-cat').value = '';
+    renderHobbies();
+    alert('已收藏到「' + h.name + '」· ' + category);
   };
   if (file) readFile(file, (data) => { file.type.startsWith('video/') ? save('', data) : save(data, ''); });
   else save('', '');
 }
 function deleteHobbyItem(id) { state.hobbyItems = state.hobbyItems.filter(x => x.id !== id); saveState(); schedulePush(); renderHobbies(); }
 
-function bindHobbyDrop(h) {
-  const card = document.getElementById('hobby-add-card');
-  if (!card) return;
-  card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
-  card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-  card.addEventListener('drop', e => {
-    e.preventDefault(); card.classList.remove('drag-over');
+let _collectDropBound = false;
+function bindCollectDrop() {
+  const card = document.getElementById('collect-drop');
+  if (!card || _collectDropBound) return;
+  _collectDropBound = true;
+  const wrap = card; // 拖拽区自身
+  wrap.addEventListener('dragover', e => { e.preventDefault(); wrap.classList.add('drag-over'); });
+  wrap.addEventListener('dragleave', () => wrap.classList.remove('drag-over'));
+  wrap.addEventListener('drop', e => {
+    e.preventDefault(); wrap.classList.remove('drag-over');
     const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
     if (!file) return;
-    let cat = state.hobbyFilter;
-    if (cat === 'all') cat = h.categories[0] || '未分类';
+    const hobbyId = document.getElementById('collect-hobby-select').value;
+    const h = state.hobbies.find(x => x.id === hobbyId);
+    if (!h) { alert('请先选择项目再拖入文件'); return; }
+    const sel = document.getElementById('collect-cat-select');
+    const newCat = document.getElementById('collect-new-cat').value.trim();
+    let cat = newCat || sel.value || (h.categories[0] || '未分类');
+    if (newCat && !h.categories.includes(newCat)) h.categories.push(newCat);
     readFile(file, data => {
       state.hobbyItems.push({ id: Date.now().toString(), hobbyId: h.id, category: cat, link: '', text: '', image: file.type.startsWith('image/') ? data : '', video: file.type.startsWith('video/') ? data : '' });
       saveState(); schedulePush(); renderHobbies();
+      alert('已收藏到「' + h.name + '」· ' + cat);
     });
   });
 }
@@ -2508,41 +2548,57 @@ function renderPhaseTimeline() {
 // ================= Charts =================
 function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#f3832c'; }
 function drawBarChart(canvas, labels, values, color) {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 300, cssH = 172;
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+  canvas.style.height = cssH + 'px';
   const ctx = canvas.getContext('2d');
-  const W = canvas.width = canvas.clientWidth || 300, H = canvas.height = 160;
-  ctx.clearRect(0,0,W,H);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  const W = cssW, H = cssH;
   const max = Math.max(60, ...values);
-  const n = values.length, pad = 16;
-  const gap = (W - pad*2) / n, bw = gap * 0.62;
+  const n = values.length, padX = 18, padBottom = 24, padTop = 14;
+  const gap = (W - padX*2) / n, bw = gap * 0.6;
   values.forEach((v, i) => {
-    const h = (v / max) * (H - pad*2);
-    const x = pad + i*gap + (gap - bw)/2, y = H - pad - h;
+    const h = (v / max) * (H - padTop - padBottom);
+    const x = padX + i*gap + (gap - bw)/2, y = H - padBottom - h;
     ctx.fillStyle = color;
     ctx.globalAlpha = v > 0 ? 1 : 0.25;
     ctx.fillRect(x, y, bw, Math.max(v > 0 ? 2 : 0, h));
     ctx.globalAlpha = 1;
-    if (i % Math.ceil(n/7) === 0 || i === n-1) {
-      ctx.fillStyle = getCssVar('--text-secondary');
-      ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(labels[i], x + bw/2, H - 4);
-    }
   });
+  // 日期标签（高清 + 加粗，底部留白）
+  ctx.fillStyle = getCssVar('--text-secondary');
+  ctx.font = '600 10px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const step = Math.max(1, Math.ceil(n / 7));
+  for (let i = 0; i < n; i += step) {
+    ctx.fillText(labels[i], padX + i*gap + gap/2, H - padBottom/2);
+  }
+  if ((n - 1) % step !== 0) {
+    ctx.fillText(labels[n-1], padX + (n-1)*gap + gap/2, H - padBottom/2);
+  }
 }
 function drawLineChart(canvas, labels, values, color) {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 300, cssH = 172;
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+  canvas.style.height = cssH + 'px';
   const ctx = canvas.getContext('2d');
-  const W = canvas.width = canvas.clientWidth || 300, H = canvas.height = 160;
-  ctx.clearRect(0,0,W,H);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = cssW, H = cssH;
   const max = Math.max(420, ...values);
-  const n = values.length, pad = 16;
+  const n = values.length, pad = 18, padBottom = 24, padTop = 14;
   const xAt = i => pad + i * (W - pad*2) / (n - 1);
-  const yAt = v => H - pad - (v / max) * (H - pad*2);
+  const yAt = v => H - padBottom - (v / max) * (H - padTop - padBottom);
   ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
   values.forEach((v, i) => { const x = xAt(i), y = yAt(v); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.stroke();
   ctx.fillStyle = color;
   values.forEach((v, i) => { if (v > 0) ctx.beginPath(), ctx.arc(xAt(i), yAt(v), 2.5, 0, 7), ctx.fill(); });
-  ctx.fillStyle = getCssVar('--text-secondary'); ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
-  for (let i = 0; i < n; i += Math.ceil(n/7)) ctx.fillText(labels[i], xAt(i), H - 4);
+  ctx.fillStyle = getCssVar('--text-secondary');
+  ctx.font = '600 10px -apple-system, BlinkMacSystemFont, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < n; i += Math.max(1, Math.ceil(n/7))) ctx.fillText(labels[i], xAt(i), H - padBottom/2);
 }
 
 // ================= Exam Overview =================
