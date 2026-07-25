@@ -1035,7 +1035,11 @@ async function pushSync() {
     _syncFailCount = 0; _syncOffline = false;
   } catch(e) {
     _syncFailCount++;
-    updateSyncUI('离线·已存本地', 'off');
+    const m = (e && e.message) || '';
+    if (m.indexOf('401') >= 0 || m.indexOf('403') >= 0) updateSyncUI('推送失败：Token 无权限（请确认是同一 GitHub 账号，且勾选了 repo）', 'off');
+    else if (m.indexOf('422') >= 0) updateSyncUI('推送失败：文件过大 >1MB（减少收藏截图）', 'off');
+    else if (m.indexOf('404') >= 0) updateSyncUI('推送失败：仓库或路径不存在', 'off');
+    else updateSyncUI('离线·已存本地（推送失败）', 'off');
   }
 }
 async function pullSync() {
@@ -1059,10 +1063,17 @@ async function pullSync() {
     updateSyncUI('离线·已存本地', 'off');
   }
 }
+// 一次完整同步：先拉远端（合并），再推本地（上传）。最终状态显示推送结果，避免被 404 掩盖
+async function syncTick() {
+  if (!syncRoom || !syncToken()) return;
+  if (!navigator.onLine) { _syncOffline = true; updateSyncUI('离线·已存本地', 'off'); return; }
+  await pullSync();
+  await pushSync();
+}
 // 网络恢复后立即重连
 window.addEventListener('online', () => {
   _syncOffline = false;
-  if (syncRoom && syncToken()) pullSync();
+  if (syncRoom && syncToken()) syncTick();
 });
 let _syncSha = null; // 缓存远端文件 sha，减少 API 调用
 const SYNC_OWNER = 'X0518390';
@@ -1089,14 +1100,14 @@ function saveSyncConfig() {
   if (!tok || !room) { st.textContent = '请同时填写 Token 和房间号'; st.style.color = '#e74c3c'; return; }
   st.textContent = '已保存，正在连接…'; st.style.color = 'var(--text-secondary)';
   updateSyncUI('同步中…', 'sync');
-  pullSync();
-  if (!window.__syncTimer) window.__syncTimer = setInterval(pullSync, 15000);
+  syncTick();
+  if (!window.__syncTimer) window.__syncTimer = setInterval(syncTick, 15000);
   st.textContent = '已连接：手机与电脑填写相同的 Token 和房间号即可互相同步';
   st.style.color = '#2ecc71';
 }
 function initSync() {
   syncRoom = localStorage.getItem('syncRoom') || '';
-  if (syncRoom && syncToken()) { updateSyncUI('同步中…', 'sync'); pullSync(); window.__syncTimer = setInterval(pullSync, 15000); }
+  if (syncRoom && syncToken()) { updateSyncUI('同步中…', 'sync'); syncTick(); window.__syncTimer = setInterval(syncTick, 15000); }
   else updateSyncUI(syncToken() ? '未设置房间号' : '点击设置同步', '');
 }
 
