@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
     :root {
+      color-scheme: light dark;
       --primary: #f3832c;
       --primary-dark: #e06d15;
       --primary-light: #fdeede;
@@ -19,6 +20,9 @@
       --text: #1c1c1e;
       --text-secondary: #6c6c70;
       --border: #e8e8ed;
+      --rec-a: #fff7ef; --rec-b: #ffffff;
+      --warn-a: #fff5f5; --warn-b: #ffffff;
+      --hero-a: #f3832c; --hero-b: #ff9a4d;
       --radius: 14px;
       --radius-lg: 18px;
       --shadow: 0 2px 12px rgba(0,0,0,0.06);
@@ -214,12 +218,15 @@
     [data-theme="dark"] {
       --bg: #1c1c1e; --card: #2c2c2e; --text: #ffffff; --text-secondary: #a0a0a5;
       --border: #3a3a3c; --primary-light: #3d2f22; --shadow: 0 2px 12px rgba(0,0,0,.4);
+      --rec-a: #3d2f22; --rec-b: #2c2c2e;
+      --warn-a: #4a2520; --warn-b: #2c2c2e;
+      --hero-a: #a85510; --hero-b: #c2691e;
     }
     [data-theme="dark"] .item-img { background: #444; }
-    /* 夜间模式：用专门类替代写死的浅色/橙色背景卡片（不再依赖内联 style 子串匹配） */
-    .card-rec  { background: linear-gradient(135deg,#fff7ef,#fff); }
-    .card-warn { background: linear-gradient(135deg,#fff5f5,#fff); }
-    .card-hero { background: linear-gradient(135deg,#f3832c,#ff9a4d); color:#fff; box-shadow:0 4px 16px rgba(243,131,44,.35); }
+    /* 用 CSS 变量驱动渐变背景（兼容浏览器强制深色模式） */
+    .card-rec  { background: linear-gradient(135deg,var(--rec-a),var(--rec-b)); }
+    .card-warn { background: linear-gradient(135deg,var(--warn-a),var(--warn-b)); }
+    .card-hero { background: linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff; box-shadow:0 4px 16px rgba(243,131,44,.35); }
     [data-theme="dark"] .card-rec  { background: linear-gradient(135deg,#3d2f22,#2c2c2e); }
     [data-theme="dark"] .card-warn { background: linear-gradient(135deg,#4a2520,#2c2c2e); }
     [data-theme="dark"] .card-hero { background: linear-gradient(135deg,#a85510,#c2691e); color:#fff; box-shadow:0 4px 16px rgba(168,85,16,.4); }
