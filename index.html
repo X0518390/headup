@@ -1270,18 +1270,42 @@ function renderTodayStudy() {
   </div>`;
 }
 function deleteStudyRecord(id) {
+  const rec = state.studyRecords.find(x => x.id === id);
   const before = state.studyRecords.length;
   state.studyRecords = state.studyRecords.filter(r => r.id !== id);
   if (state.studyRecords.length === before) return;
-  saveState(); schedulePush(); renderTodayStudy(); renderDashboard(); renderExamCardsLight();
+  // 同步回退对应每日任务的「时间条」累计：误删记录后进度条也要跟着减
+  if (rec && rec.taskId) {
+    const t = state.tasks.find(x => x.id === rec.taskId);
+    if (t) {
+      t.logged = Math.max(0, (t.logged || 0) - (rec.minutes || 0));
+      if (t.target && t.target > 0 && t.logged < t.target && t.done) {
+        t.done = false;
+        if (/张宇/.test(t.text)) bumpCourse('zhangyu', -2);
+        else if (/王道/.test(t.text)) bumpCourse('wangdao', -2);
+      }
+    }
+  }
+  saveState(); schedulePush(); renderTodayStudy(); renderDaily(); renderDashboard(); renderExamCardsLight();
   toast('已删除该条学习记录');
 }
 function editStudyRecordMin(id, val) {
   const r = state.studyRecords.find(x => x.id === id);
   if (!r) return;
   const m = Math.max(1, Math.round(parseInt(val) || 0));
+  // 同步调整对应每日任务的「时间条」累计
+  if (r.taskId) {
+    const t = state.tasks.find(x => x.id === r.taskId);
+    if (t) {
+      t.logged = Math.max(0, (t.logged || 0) + (m - (r.minutes || 0)));
+      if (t.target && t.target > 0) {
+        if (t.logged >= t.target && !t.done) { t.done = true; if (/张宇/.test(t.text)) bumpCourse('zhangyu', 2); else if (/王道/.test(t.text)) bumpCourse('wangdao', 2); }
+        else if (t.logged < t.target && t.done) { t.done = false; if (/张宇/.test(t.text)) bumpCourse('zhangyu', -2); else if (/王道/.test(t.text)) bumpCourse('wangdao', -2); }
+      }
+    }
+  }
   r.minutes = m;
-  saveState(); schedulePush(); renderTodayStudy(); renderDashboard(); renderExamCardsLight();
+  saveState(); schedulePush(); renderTodayStudy(); renderDaily(); renderDashboard(); renderExamCardsLight();
 }
 // 仅刷新考研页里依赖学习记录的卡片（预算/欠账/薄弱/连胜），避免整页重渲闪烁
 function renderExamCardsLight() {
@@ -2472,7 +2496,7 @@ function finishPomodoro(early) {
   const taskId = state.pomo.taskId;
   state.lifeRecords.push({ id: Date.now().toString(), date: todayStr(), name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin) });
   if (state.pomo.subject) {
-    state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: state.pomo.subject, minutes: realMin, late: isAfterBedtime() });
+    state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: state.pomo.subject, minutes: realMin, late: isAfterBedtime(), taskId: taskId || null });
   }
   // 累计到绑定任务的「时间条」，达到目标自动打勾
   if (taskId) {
