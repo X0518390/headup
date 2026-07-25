@@ -383,7 +383,10 @@
             <div class="form-row"><textarea class="textarea" id="collect-text" placeholder="文本/备注"></textarea></div>
             <div class="form-row"><input type="file" class="input" id="collect-media" accept="image/*,video/*"></div>
             <label class="dropzone" id="collect-drop">📎 把截图/视频拖到这里自动添加</label>
-            <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="addCollectItem()">保存收藏</button>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn btn-secondary" style="flex:1" onclick="pasteAndCollect()">📋 粘贴链接识别</button>
+              <button class="btn btn-primary" style="flex:1" onclick="addCollectItem()">保存收藏</button>
+            </div>
           </div>
           <div class="card" style="margin-top:16px">
             <div class="card-title">🎡 兴趣转盘</div>
@@ -659,6 +662,29 @@
         <button class="btn btn-primary btn-block" onclick="confirmReviewRating(5)">😎 非常流利</button>
         <button class="btn btn-secondary btn-block" onclick="closeReviewRating()">取消</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 分享/粘贴链接快速收藏 Modal -->
+  <div class="modal-overlay" id="collect-share-modal" onclick="if(event.target===this) closeShareCollect()">
+    <div class="modal">
+      <h3>🔗 收藏到兴趣银行</h3>
+      <div class="card-sub">已帮你提取链接与标题，选好项目和分类即可入库</div>
+      <div class="form-row">
+        <input class="input" id="share-link" placeholder="链接" style="font-size:13px">
+      </div>
+      <div class="form-row">
+        <textarea class="textarea" id="share-text" placeholder="标题 / 关键词（可改）" rows="2"></textarea>
+      </div>
+      <div class="form-row" style="align-items:flex-end">
+        <select class="input" id="share-hobby-select" onchange="onShareHobbyChange()"><option value="">— 选择项目 —</option></select>
+      </div>
+      <div class="form-row" style="align-items:flex-end">
+        <select class="input" id="share-cat-select"></select>
+        <input class="input" id="share-new-cat" placeholder="或填新分类" style="max-width:42%">
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="confirmShareCollect()">保存收藏</button>
+      <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeShareCollect()">稍后再说</button>
     </div>
   </div>
 
@@ -2104,7 +2130,119 @@ function addCollectItem() {
 }
 function deleteHobbyItem(id) { state.hobbyItems = state.hobbyItems.filter(x => x.id !== id); saveState(); schedulePush(); renderHobbies(); }
 
+// ================= 分享/粘贴链接 → 快速收藏 =================
+// 从抖音/B站等「分享到 Head up」或「复制链接后打开页面」自动带入链接并提取标题，选好项目+分类即入库
 let _collectDropBound = false;
+function extractFirstUrl(text) {
+  if (!text) return '';
+  const m = String(text).match(/https?:\/\/[^\s，。、）)]+/i);
+  return m ? m[0].replace(/[）)]+$/, '') : '';
+}
+function platformNameFromUrl(url) {
+  const u = (url || '').toLowerCase();
+  if (/b23\.tv|live\.bilibili\.com|bilibili\.com/.test(u)) return '哔哩哔哩';
+  if (/douyin\.com|v\.douyin\.com/.test(u)) return '抖音';
+  if (/xiaohongshu\.com|xhslink\.com/.test(u)) return '小红书';
+  if (/youtube\.com|youtu\.be/.test(u)) return 'YouTube';
+  if (/weibo\.com|weibocdn/.test(u)) return '微博';
+  if (/kuaishou\.com|chenzhongtech\.com/.test(u)) return '快手';
+  try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return '网页'; }
+}
+function cleanHint(title, text, url) {
+  // 优先用分享标题；退而求其次用正文（去掉链接）
+  let raw = (title || '').trim();
+  if (!raw || /^https?:\/\//i.test(raw)) {
+    raw = (text || '').replace(/https?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim();
+  }
+  if (raw) {
+    // 去掉平台后缀，如 “ - 哔哩哔哩” “ | 抖音” “_ 小红书” 等
+    raw = raw.replace(/\s*[-–—|｜_]\s*(哔哩哔哩|bilibili|抖音|douyin|tiktok|小红书|xiaohongshu|youtube|优酷|腾讯视频|爱奇艺|微博|weibo).*$/i, '');
+    raw = raw.replace(/\s*[-–—|｜_]\s*(官方|Official|频道|Channel).*$/i, '');
+    raw = raw.trim();
+    if (raw) return raw.slice(0, 80);
+  }
+  return platformNameFromUrl(url) + '链接';
+}
+let _lastShareLink = '';
+function openCollectShareModal(link, hint) {
+  link = (link || '').trim();
+  if (!link) return;
+  _lastShareLink = link;
+  setView('hobbies');
+  const sel = document.getElementById('share-hobby-select');
+  sel.innerHTML = '<option value="">— 选择项目 —</option>' + state.hobbies.map(h => `<option value="${h.id}">${h.icon} ${h.name}</option>`).join('');
+  document.getElementById('share-link').value = link;
+  document.getElementById('share-text').value = hint || '';
+  document.getElementById('share-new-cat').value = '';
+  document.getElementById('share-cat-select').innerHTML = '<option value="">（无分类）</option>';
+  const m = document.getElementById('collect-share-modal');
+  m.classList.add('show');
+  focusModalFirst('collect-share-modal');
+}
+function onShareHobbyChange() {
+  const hobbyId = document.getElementById('share-hobby-select').value;
+  const catSel = document.getElementById('share-cat-select');
+  if (!catSel) return;
+  const h = state.hobbies.find(x => x.id === hobbyId);
+  catSel.innerHTML = h && h.categories.length
+    ? h.categories.map(c => `<option value="${c}">${c}</option>`).join('')
+    : '<option value="">（无分类）</option>';
+}
+function confirmShareCollect() {
+  const hobbyId = document.getElementById('share-hobby-select').value;
+  if (!hobbyId) { toast('请先选择项目'); return; }
+  const h = state.hobbies.find(x => x.id === hobbyId);
+  if (!h) return;
+  const sel = document.getElementById('share-cat-select');
+  const newCat = document.getElementById('share-new-cat').value.trim();
+  let category = newCat || (sel.value) || (h.categories[0] || '未分类');
+  if (newCat && !h.categories.includes(newCat)) h.categories.push(newCat);
+  const link = document.getElementById('share-link').value.trim();
+  const text = document.getElementById('share-text').value.trim();
+  state.hobbyItems.push({ id: Date.now().toString(), hobbyId, category, link, text, image: '', video: '' });
+  saveState(); schedulePush();
+  closeShareCollect();
+  renderHobbies();
+  toast('已收藏到「' + h.name + '」· ' + category);
+}
+function closeShareCollect() {
+  const m = document.getElementById('collect-share-modal');
+  if (m) m.classList.remove('show');
+}
+function pasteAndCollect() {
+  if (!navigator.clipboard || !navigator.clipboard.readText) { toast('当前环境不支持读取剪贴板'); return; }
+  navigator.clipboard.readText().then(txt => {
+    const link = extractFirstUrl(txt);
+    if (!link) { toast('剪贴板里没有检测到链接'); return; }
+    if (link === _lastShareLink) { openCollectShareModal(link, ''); return; }
+    openCollectShareModal(link, cleanHint('', txt, link));
+  }).catch(() => toast('无法读取剪贴板，请允许权限后重试'));
+}
+// 系统分享唤醒（Web Share Target）：?share=1&title=&text=&url=
+function handleIncomingShare() {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('share') !== '1') return;
+    const link = extractFirstUrl(q.get('url')) || extractFirstUrl(q.get('text'));
+    const hint = cleanHint(q.get('title'), q.get('text'), q.get('url'));
+    // 清掉地址栏参数，避免刷新重复弹窗
+    history.replaceState(null, '', location.pathname);
+    if (link) openCollectShareModal(link, hint);
+  } catch (e) {}
+}
+// 打开页面时自动读取剪贴板里的链接（需浏览器剪贴板权限；失败则不做处理）
+function checkClipboardOnLoad() {
+  if (!navigator.clipboard || !navigator.clipboard.readText) return;
+  if (document.getElementById('collect-share-modal').classList.contains('show')) return;
+  if (sessionStorage.getItem('headup_clip_prompted')) return;
+  navigator.clipboard.readText().then(txt => {
+    const link = extractFirstUrl(txt);
+    if (link && link !== _lastShareLink) {
+      sessionStorage.setItem('headup_clip_prompted', '1');
+      openCollectShareModal(link, cleanHint('', txt, link));
+    }
+  }).catch(() => {});
+}
 function bindCollectDrop() {
   const card = document.getElementById('collect-drop');
   if (!card || _collectDropBound) return;
@@ -3631,7 +3769,7 @@ document.addEventListener('click', e => {
   if (sheet && sheet.classList.contains('show') && !sheet.contains(e.target) && e.target.id !== 'fab') sheet.classList.remove('show');
 });
 // 弹窗：Esc 关闭 + Tab 焦点锁定在当前弹窗内（减少误操作与界面跳动）
-const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal', 'review-rating-modal'];
+const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal', 'review-rating-modal', 'collect-share-modal'];
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     let closed = false;
@@ -3772,6 +3910,8 @@ function init() {
   creditHobbyBank();
   renderNav();
   setView('daily');
+  handleIncomingShare();
+  checkClipboardOnLoad();
   recoverPomo();
   initSync();
   setInterval(checkBedtimeNotif, 60000);
