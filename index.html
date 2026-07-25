@@ -1142,24 +1142,25 @@ function generateDailyTasks() {
   const dow = new Date().getDay(); // 0=周日 .. 6=周六
   const isWeekend = (dow === 0 || dow === 6);
   const wkTag = '（推进第' + st.weekNum + '周）';
-  const mk = (text) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false, target: 0, logged: 0 });
+  // 按规划预设每条任务的时长（分钟），区分周中 / 周末；target>0 才会显示时间条
+  const mk = (text, target) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false, target: target || 0, logged: 0 });
   if (isWeekend) {
     const arr = [
-      mk('数学·张宇 看课 3 节（上午整块时间）' + wkTag),
-      mk('408·王道 看课 3 节（下午整块时间）' + wkTag),
-      mk('英语：阅读2篇 + 单词复习'),
+      mk('数学·张宇 看课 3 节（上午整块时间）' + wkTag, 180),
+      mk('408·王道 看课 3 节（下午整块时间）' + wkTag, 180),
+      mk('英语：阅读2篇 + 单词复习', 60),
     ];
-    if (st.weekNum >= 9) arr.push(mk('政治：肖1000题 1 章 / 背诵手册' + wkTag));
-    arr.push(mk('错题复盘 2h（本周薄弱点）'));
+    if (st.weekNum >= 9) arr.push(mk('政治：肖1000题 1 章 / 背诵手册' + wkTag, 60));
+    arr.push(mk('错题复盘 2h（本周薄弱点）', 120));
     return arr;
   }
   return [
-    mk('背单词（墨墨/不背：新词40+复习旧词）'),
-    mk('张宇基础30讲 看课 1.5–2 节' + wkTag),
-    mk('高数课后题 / 张宇1000题（配套1-2节）'),
-    mk('王道数据结构 看课 1.5–2 节' + wkTag),
-    mk('数据结构选择题 + 算法手写(C) 1 道'),
-    mk('睡前15分钟单词复习')
+    mk('背单词（墨墨/不背：新词40+复习旧词）', 30),
+    mk('张宇基础30讲 看课 1.5–2 节' + wkTag, 90),
+    mk('高数课后题 / 张宇1000题（配套1-2节）', 60),
+    mk('王道数据结构 看课 1.5–2 节' + wkTag, 90),
+    mk('数据结构选择题 + 算法手写(C) 1 道', 45),
+    mk('睡前15分钟单词复习', 15),
   ];
 }
 function generateTodayPlan() {
@@ -2451,7 +2452,10 @@ function finishPomodoro(early) {
     }
   }
   state.pomo = null;
+  // 任务状态变化后同步到「完成日历」快照，并刷新每日视图（若正在看）
+  updateDailySnapshot();
   saveState(); schedulePush();
+  if (state.view === 'daily') renderDaily();
   renderLife();
 }
 function earlyStop() { if (state.pomo) finishPomodoro(true); }
