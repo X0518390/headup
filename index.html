@@ -334,6 +334,29 @@
     .sleep-guard-bad { border-left: 4px solid #e74c3c; }
     .sleep-guard-ok { border-left: 4px solid #5b8c51; }
     .alert-banner.sleep-bad { background: #4a2520; color: #ff8a80; }
+
+    /* 兴趣银行奖励网格 + 悬浮倒计时框 */
+    .reward-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-top: 10px; }
+    .reward-card { position: relative; border: 1px solid var(--border); border-radius: 12px; padding: 12px 8px 10px; text-align: center; background: var(--bg); }
+    .reward-card.reward-disabled { opacity: .55; }
+    .reward-del { position: absolute; top: 3px; right: 6px; border: none; background: none; color: var(--text-secondary); font-size: 14px; cursor: pointer; line-height: 1; padding: 2px; }
+    .reward-icon { font-size: 26px; }
+    .reward-name { font-size: 14px; font-weight: 600; margin: 4px 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .reward-min { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+    .reward-add { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; align-items: flex-end; }
+    #reward-timer-float {
+      position: fixed; right: 14px; bottom: 86px; z-index: 500; width: 150px;
+      background: linear-gradient(135deg, #f3832c, #ff9a4d); border-radius: 18px; padding: 10px 8px;
+      color: #fff; box-shadow: 0 8px 28px rgba(0,0,0,.35); text-align: center;
+    }
+    #reward-timer-float.hidden { display: none; }
+    .rtf-close { position: absolute; top: 6px; right: 9px; font-size: 15px; cursor: pointer; opacity: .9; }
+    .rtf-head { display: flex; align-items: center; gap: 4px; justify-content: center; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+    .rtf-head .rtf-icon { font-size: 16px; }
+    .rtf-ringwrap { position: relative; width: 120px; height: 120px; margin: 0 auto; }
+    .rtf-ringwrap svg { position: absolute; inset: 0; }
+    .rtf-time { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; }
+    .rtf-tip { text-align: center; font-size: 10px; opacity: .92; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -412,6 +435,7 @@
       <div id="view-hobbies" class="hidden">
         <div id="hobbies-list">
           <div id="hobby-lock" class="hidden"></div>
+          <div id="interest-bank-mount"></div>
           <div class="section-title">🎨 兴趣爱好</div>
           <div class="hobby-grid" id="hobby-grid"></div>
           <div class="card" style="margin-top:16px">
@@ -475,6 +499,7 @@
 
       <!-- Habits -->
       <div id="view-habits" class="hidden">
+        <div id="habit-chain-mount"></div>
         <div class="card">
           <div class="card-title">⏰ 早睡早起打卡</div>
           <div class="habit-actions">
@@ -992,6 +1017,8 @@ function ensureState() {
   if (!state.habits) state.habits = defaultHabits();
   if (!state.habitChecks) state.habitChecks = {};
   if (!state.restDays) state.restDays = {};
+  if (!state.hobbyRewards) state.hobbyRewards = defaultRewards();
+  if (state.activeReward === undefined) state.activeReward = null;
   if (state._habitEditorOpen === undefined) state._habitEditorOpen = false;
   if (!state.settings.autoPlan && state.settings.autoPlan !== false) state.settings.autoPlan = true;
   if (state.settings.weekdayGoal === undefined) state.settings.weekdayGoal = state.settings.studyGoal || 240;
@@ -2029,6 +2056,11 @@ function renderHobbies() {
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">银行余额 <b>${state.hobbyBank}</b> 分钟 · 打卡可累计练习连胜</div>
       <button class="btn btn-primary btn-block" onclick="checkInHobby('${h.id}',30)" ${canSpend ? '' : 'disabled style="opacity:.5;cursor:not-allowed"'}>${canSpend ? '花 30 分钟并打卡' : '余额不足，先去完成今日目标'}</button>`;
   }
+  renderInterestBankMount();
+}
+function renderInterestBankMount() {
+  const el = document.getElementById('interest-bank-mount');
+  if (el) el.innerHTML = renderInterestBank();
 }
 function openHobby(id) { state.hobbyOpen = id; state.hobbyFilter = 'all'; saveState(); schedulePush(); renderHobbies(); }
 // ================= 兴趣转盘 =================
@@ -2401,6 +2433,11 @@ function renderHabits() {
   });
   renderSleepSummary();
   renderSleepChart();
+  renderHabitChainMount();
+}
+function renderHabitChainMount() {
+  const el = document.getElementById('habit-chain-mount');
+  if (el) el.innerHTML = renderHabitChain();
 }
 function renderSleepSummary() {
   const records = state.habit.records;
@@ -3252,6 +3289,16 @@ function defaultHabits() {
     { id: 'h_pomo', name: '完成2个番茄钟', kind: 'pomo', target: 2, icon: '🍅' }
   ];
 }
+// 兴趣银行可兑换的奖励（用户可增删，每项自定义时长，默认30分钟）
+function defaultRewards() {
+  return [
+    { id: 'r_guitar', name: '吉他', icon: '🎸', minutes: 30 },
+    { id: 'r_photo', name: '摄影', icon: '📷', minutes: 30 },
+    { id: 'r_dance', name: '跳舞', icon: '💃', minutes: 30 },
+    { id: 'r_yoga', name: '瑜伽', icon: '🧘', minutes: 30 },
+    { id: 'r_edit', name: '剪辑', icon: '✂️', minutes: 30 }
+  ];
+}
 // 某天某习惯是否满足（休息日视为满足，不破链）
 function habitSatOn(h, ds) {
   if (state.restDays[ds]) return true;
@@ -3299,6 +3346,10 @@ function habitStreak(id) {
   }
   return streak;
 }
+function rerenderHabitArea() {
+  if (state.view === 'daily') renderDaily();
+  else if (state.view === 'habits') renderHabits();
+}
 function toggleHabit(id) {
   const h = (state.habits || []).find(x => x.id === id);
   if (!h || h.kind !== 'manual') return;
@@ -3306,17 +3357,17 @@ function toggleHabit(id) {
   if (!state.habitChecks[t]) state.habitChecks[t] = {};
   state.habitChecks[t][id] = !state.habitChecks[t][id];
   saveState(); schedulePush();
-  if (state.view === 'daily') renderDaily();
+  rerenderHabitArea();
 }
 function toggleRestDay() {
   const t = todayStr();
   if (state.restDays[t]) delete state.restDays[t]; else state.restDays[t] = true;
   saveState(); schedulePush();
-  if (state.view === 'daily') renderDaily();
+  rerenderHabitArea();
 }
 function toggleHabitEditor() {
   state._habitEditorOpen = !state._habitEditorOpen;
-  if (state.view === 'daily') renderDaily();
+  rerenderHabitArea();
 }
 function addHabit() {
   const name = (document.getElementById('new-habit-name').value || '').trim();
@@ -3326,13 +3377,13 @@ function addHabit() {
   if (!name) { toast('请输入习惯名称'); return; }
   state.habits.push({ id: 'h_' + Date.now().toString(36), name, kind, icon, target: kind === 'pomo' ? target : undefined });
   saveState(); schedulePush();
-  if (state.view === 'daily') renderDaily();
+  rerenderHabitArea();
   toast('已添加习惯：' + name);
 }
 function removeHabit(id) {
   state.habits = (state.habits || []).filter(h => h.id !== id);
   saveState(); schedulePush();
-  if (state.view === 'daily') renderDaily();
+  rerenderHabitArea();
 }
 function renderHabitChain() {
   const t = todayStr();
@@ -3411,30 +3462,140 @@ function renderSleepGuard() {
     ${banner}
   </div>`;
 }
+let rewardTimerInt = null;
 function renderInterestBank() {
   const bal = state.hobbyBank || 0;
   const rate = BANK_PER_POMO;
   const rewardH = state.settings.rewardHours || 3;
-  const hobbies = [['🎸','吉他'],['📷','摄影'],['💃','跳舞'],['🧘','瑜伽'],['✂️','剪辑']];
-  const btns = hobbies.map(([ic, nm]) => `<button class="btn btn-small btn-secondary" onclick="redeemHobby('${nm}')">${ic} ${nm}30分</button>`).join('');
+  const rewards = state.hobbyRewards || [];
+  const cards = rewards.map(r => {
+    const can = bal >= r.minutes;
+    return `<div class="reward-card ${can ? '' : 'reward-disabled'}">
+      <button class="reward-del" onclick="deleteReward('${r.id}')" title="删除">✕</button>
+      <div class="reward-icon">${r.icon || '🎁'}</div>
+      <div class="reward-name">${escapeHtml(r.name)}</div>
+      <div class="reward-min">${r.minutes} 分钟</div>
+      <button class="btn btn-small ${can ? 'btn-primary' : 'btn-secondary'}" ${can ? '' : 'disabled style="opacity:.5;cursor:not-allowed"'} onclick="startRewardTimer('${r.id}')">${can ? '▶ 开始' : '余额不足'}</button>
+    </div>`;
+  }).join('');
   return `<div class="card">
-    <div class="card-title">🎸 兴趣银行</div>
-    <div class="card-sub">完成任务攒「兴趣时间」，兑换你的爱好 💡</div>
+    <div class="card-title">🎸 兴趣银行 · 兑换奖励</div>
+    <div class="card-sub">完成任务攒「兴趣时间」，点奖励开始计时，时间到自动提醒 💡</div>
     <div style="display:flex;gap:12px;align-items:center;margin:6px 0">
       <div style="font-size:26px;font-weight:800;color:var(--primary)">${bal} 分钟</div>
       <div style="font-size:12px;color:var(--text-secondary)">每完成1个番茄 +${rate}分<br>每周达标再 +${rewardH}小时</div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">${btns}</div>
+    <div class="reward-grid">${cards || '<div class="card-sub">还没有奖励，下面添加一个吧</div>'}</div>
+    <div class="reward-add">
+      <input class="input" id="new-reward-name" placeholder="奖励名(如 看剧)" style="flex:2;min-width:90px">
+      <input class="input" id="new-reward-icon" placeholder="图标" style="max-width:56px" value="🎁">
+      <input class="input" id="new-reward-min" type="number" min="1" placeholder="分钟" style="max-width:74px" value="30">
+      <button class="btn btn-primary btn-small" onclick="addReward()">添加</button>
+    </div>
   </div>`;
 }
-function redeemHobby(name) {
-  if ((state.hobbyBank || 0) < 30) { toast('兴趣时间不足30分钟，先去完成番茄赚一些吧 💪'); return; }
-  state.hobbyBank -= 30;
-  const t = todayStr();
-  if (!state.hobbyCheckins.includes(t)) state.hobbyCheckins.push(t);
+function addReward() {
+  const name = (document.getElementById('new-reward-name').value || '').trim();
+  const icon = (document.getElementById('new-reward-icon').value || '').trim() || '🎁';
+  const minutes = Math.max(1, parseInt(document.getElementById('new-reward-min').value, 10) || 30);
+  if (!name) { toast('请输入奖励名称'); return; }
+  if (!state.hobbyRewards) state.hobbyRewards = defaultRewards();
+  state.hobbyRewards.push({ id: 'r_' + Date.now().toString(36), name, icon, minutes });
   saveState(); schedulePush();
-  if (state.view === 'daily') renderDaily();
-  toast('🎉 已兑换 ' + name + ' 30分钟，余额 ' + state.hobbyBank + ' 分钟');
+  renderInterestBankMount();
+  toast('已添加奖励：' + name);
+}
+function deleteReward(id) {
+  state.hobbyRewards = (state.hobbyRewards || []).filter(r => r.id !== id);
+  saveState(); schedulePush();
+  renderInterestBankMount();
+}
+function startRewardTimer(id) {
+  const r = (state.hobbyRewards || []).find(x => x.id === id);
+  if (!r) return;
+  if (state.activeReward) { toast('已有奖励倒计时进行中，先结束它'); return; }
+  const bal = state.hobbyBank || 0;
+  if (bal < r.minutes) { toast('兴趣时间不足 ' + r.minutes + ' 分钟，先去完成番茄赚一些吧 💪'); return; }
+  state.hobbyBank -= r.minutes;
+  state.activeReward = { id: r.id, name: r.name, icon: r.icon, minutes: r.minutes, endTime: Date.now() + r.minutes * 60000, totalSec: r.minutes * 60 };
+  saveState(); schedulePush();
+  renderInterestBankMount();
+  renderRewardFloat();
+  startRewardTick();
+  toast('▶ 开始「' + r.name + '」' + r.minutes + ' 分钟计时');
+}
+function startRewardTick() {
+  if (rewardTimerInt) clearInterval(rewardTimerInt);
+  rewardTimerInt = setInterval(tickRewardTimer, 1000);
+  tickRewardTimer();
+}
+function tickRewardTimer() {
+  if (!state.activeReward) { stopRewardTick(); return; }
+  const remain = Math.max(0, Math.round((state.activeReward.endTime - Date.now()) / 1000));
+  const el = document.getElementById('reward-timer-float');
+  if (el) {
+    const t = document.getElementById('reward-timer-text');
+    if (t) t.textContent = fmtSec(remain);
+    const ring = document.getElementById('reward-timer-ring');
+    if (ring) {
+      const total = state.activeReward.totalSec || 1;
+      const circ = 2 * Math.PI * 54;
+      ring.style.strokeDashoffset = String(circ * (1 - remain / total));
+    }
+  }
+  if (remain <= 0) endRewardTimer(false);
+}
+function stopRewardTick() { if (rewardTimerInt) { clearInterval(rewardTimerInt); rewardTimerInt = null; } }
+function endRewardTimer(silent) {
+  stopRewardTick();
+  const r = state.activeReward;
+  state.activeReward = null;
+  saveState(); schedulePush();
+  const el = document.getElementById('reward-timer-float');
+  if (el) el.classList.add('hidden');
+  renderInterestBankMount();
+  if (r && !silent) {
+    toast('⏰ 「' + r.name + '」时间到！');
+    showRewardDone(r.name);
+  }
+}
+function renderRewardFloat() {
+  const el = document.getElementById('reward-timer-float');
+  if (!el || !state.activeReward) return;
+  const r = state.activeReward;
+  const circ = 2 * Math.PI * 54;
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="rtf-close" onclick="endRewardTimer(true)">✕</div>
+    <div class="rtf-head"><span class="rtf-icon">${r.icon || '🎁'}</span>${escapeHtml(r.name)}</div>
+    <div class="rtf-ringwrap">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="8"/>
+        <circle id="reward-timer-ring" cx="60" cy="60" r="54" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear"/>
+      </svg>
+      <div class="rtf-time" id="reward-timer-text">${fmtSec(r.totalSec)}</div>
+    </div>
+    <div class="rtf-tip">时间到自动提醒</div>`;
+}
+function fmtSec(s) {
+  s = Math.max(0, Math.round(s));
+  const m = Math.floor(s / 60), sec = s % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+function showRewardDone(name) {
+  const m = document.getElementById('reward-done-modal');
+  if (!m) { toast('⏰ ' + name + ' 时间到！'); return; }
+  document.getElementById('reward-done-name').textContent = name;
+  if (window.Notification && Notification.permission === 'granted') {
+    try { new Notification('⏰ 时间到啦', { body: '「' + name + '」计时结束，去休息或玩一会儿吧 🎉' }); } catch (e) {}
+  }
+  m.classList.add('show');
+}
+function closeRewardDone() { const m = document.getElementById('reward-done-modal'); if (m) m.classList.remove('show'); }
+function resumeRewardTimer() {
+  if (!state.activeReward) return;
+  if (state.activeReward.endTime <= Date.now()) endRewardTimer(false);
+  else { renderRewardFloat(); startRewardTick(); }
 }
 
 function renderDashboard() {
@@ -3552,7 +3713,7 @@ function renderDashboard() {
   const habitChainCard = renderHabitChain();
   const sleepGuardCard = renderSleepGuard();
   const interestBankCard = renderInterestBank();
-  el.innerHTML = alert + recCard + sleepGuardCard + habitChainCard + interestBankCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
+  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
       <div class="dash-card"><div class="dash-num">${fmtMin(todayStudy)}</div><div class="dash-label">今日学习</div></div>
@@ -4238,6 +4399,7 @@ function init() {
   handleIncomingShare();
   checkClipboardOnLoad();
   recoverPomo();
+  resumeRewardTimer();
   initSync();
   setInterval(checkBedtimeNotif, 60000);
   checkBedtimeNotif();
@@ -4263,5 +4425,17 @@ function showUpdateBanner() {
 }
 init();
 </script>
+
+<!-- 奖励悬浮倒计时框 -->
+<div id="reward-timer-float" class="hidden"></div>
+<!-- 倒计时结束提示 -->
+<div class="modal-overlay" id="reward-done-modal" onclick="if(event.target===this) closeRewardDone()">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:44px">⏰</div>
+    <div class="modal-title" style="font-size:18px;margin:6px 0 10px">时间到啦！</div>
+    <div class="card-sub">「<b id="reward-done-name"></b>」计时结束，去休息或玩一会儿吧 🎉</div>
+    <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="closeRewardDone()">好的</button>
+  </div>
+</div>
 </body>
 </html>
