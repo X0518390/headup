@@ -72,7 +72,14 @@
     .btn-small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
     .btn-block { width: 100%; }
 
-    .task-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg); border-radius: 12px; margin-bottom: 10px; }
+    .task-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg); border-radius: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .task-time { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+    .task-pomo { background: rgba(243,131,44,.14); color: var(--primary); border: none; border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .task-pomo:active { transform: scale(.95); }
+    .task-target { width: 54px; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
+    .task-progress { flex: 1; min-width: 90px; height: 8px; background: #ececf0; border-radius: 6px; overflow: hidden; }
+    .task-progress > i { display: block; height: 100%; background: var(--primary); border-radius: 6px; }
+    .task-progress.done > i { background: #2e9e5b; }
     .task-item.done { background: var(--primary-light); }
     .task-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
     .task-check.checked { background: var(--primary); color: white; }
@@ -205,6 +212,30 @@
     }
     [data-theme="dark"] .item-img { background: #444; }
 
+    /* 字号缩放：作用于内容和侧栏，%overflow-x 可横向滚动，不会裁切 */
+    .content { overflow-x: auto; }
+    body.font-lg .content, body.font-lg .sidebar { zoom: 1.15; }
+    body.font-xl .content, body.font-xl .sidebar { zoom: 1.3; }
+
+    /* 高对比模式：纯黑底 + 亮黄强调，粗边框、去阴影，长时间阅读更护眼 */
+    body.hc, body.hc[data-theme] {
+      --bg: #000000; --card: #000000; --text: #ffffff; --text-secondary: #ffffff;
+      --border: #ffffff; --primary: #ffd400; --primary-dark: #ffe600; --primary-light: #3a2f00;
+      --shadow: none; --shadow-sm: none;
+    }
+    body.hc .card, body.hc .stat-card, body.hc .subject-card, body.hc .dash-card,
+    body.hc .hobby-card, body.hc .modal, body.hc .item-card, body.hc .resource-card,
+    body.hc .dropzone, body.hc .sync-box, body.hc .install-banner, body.hc .bottom-tabs {
+      border: 2px solid #ffffff !important;
+    }
+    body.hc .btn-primary { background: #ffd400; color: #000000; box-shadow: none; }
+    body.hc .btn-secondary { background: #000000; color: #ffffff; border: 2px solid #ffffff; }
+    body.hc .input, body.hc .textarea, body.hc select { background: #000000; color: #ffffff; border: 2px solid #ffffff; }
+    body.hc .nav-item.active, body.hc .tab.active, body.hc .seg.seg-on, body.hc .bottom-tab.active { color: #ffd400; background: #3a2f00; }
+    body.hc a { color: #ffd400; }
+    body.hc :focus-visible, body.hc .input:focus, body.hc .textarea:focus { outline: 3px solid #ffd400; }
+    body.hc .status-good { color: #00e676; } body.hc .status-warn { color: #ffd400; } body.hc .status-bad { color: #ff5252; }
+
     /* Bottom tabs (mobile) */
     .bottom-tabs { display: none; }
     @media (max-width: 768px) {
@@ -280,7 +311,9 @@
         <button class="menu-btn" onclick="toggleSidebar()">☰</button>
         <span id="pageTitle">每日计划</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="icon-btn" onclick="cycleFontSize()" aria-label="切换字号" title="切换字号" style="font-size:16px;font-weight:700">A+</button>
+        <button class="icon-btn" onclick="toggleHighContrast()" aria-label="高对比模式" title="高对比模式" style="font-size:18px">🌗</button>
         <button class="icon-btn" onclick="openSettings()" aria-label="设置" style="font-size:18px">⚙</button>
         <span id="currentDate"></span>
       </div>
@@ -312,6 +345,7 @@
               <input class="input" id="new-task-input" placeholder="输入新任务...">
               <button class="btn btn-primary" onclick="addTask()">添加</button>
             </div>
+            <div id="today-study" style="margin-top:14px"></div>
           </div>
         </div>
       </div>
@@ -498,6 +532,19 @@
           <option value="dark">深色</option>
         </select>
       </div>
+      <div style="margin:10px 0 6px;font-weight:600;font-size:14px">👁 护眼显示（字号 / 对比度）</div>
+      <div class="setting-row">
+        <label>字号</label>
+        <select class="input" id="set-font-scale" style="max-width:160px">
+          <option value="1">标准</option>
+          <option value="1.15">大（1.15×）</option>
+          <option value="1.3">超大（1.3×）</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <label>🌗 高对比模式（黑底亮字）</label>
+        <input type="checkbox" id="set-hc">
+      </div>
       <div style="margin:10px 0 6px;font-weight:600;font-size:14px">🎁 爱好奖励（每周达标自动解锁兴趣）</div>
       <div class="setting-row">
         <label>每周达标天数</label>
@@ -596,6 +643,22 @@
       </div>
       <button class="btn btn-primary btn-block" onclick="confirmMakeup()">确认补做</button>
       <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeMakeup()">取消</button>
+    </div>
+  </div>
+
+  <!-- 复习评分 Modal（SM-2） -->
+  <div class="modal-overlay" id="review-rating-modal" onclick="if(event.target===this) closeReviewRating()">
+    <div class="modal">
+      <h3 id="review-rating-title">这次复习得怎么样？</h3>
+      <div class="card-sub">根据记忆程度自动调整下次复习间隔（艾宾浩斯 SM-2）。</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+        <button class="btn btn-danger btn-block" onclick="confirmReviewRating(1)">😵 完全想不起来</button>
+        <button class="btn btn-block" onclick="confirmReviewRating(2)">😣 很吃力才想起</button>
+        <button class="btn btn-block" onclick="confirmReviewRating(3)">🤔 有点模糊</button>
+        <button class="btn btn-block" onclick="confirmReviewRating(4)">🙂 比较顺利</button>
+        <button class="btn btn-primary btn-block" onclick="confirmReviewRating(5)">😎 非常流利</button>
+        <button class="btn btn-secondary btn-block" onclick="closeReviewRating()">取消</button>
+      </div>
     </div>
   </div>
 
@@ -804,6 +867,7 @@ let state = {
   weeklyReview: {},
   mockSets: { math: 0, cs408: 0 },
   deficits: { weekly: {}, daily: {}, _wk: 0, _day: '' },
+  weekHistory: {},
   settings: { examDate: '2026-12-19', bedTime: '23:30', studyGoal: 240, weekdayGoal: 240, weekendGoal: 300, theme: 'auto', navOrder: ['daily','exam','life','hobbies','habits'], autoPlan: true, rewardDays: 5, rewardHours: 3, notif: false }
 };
 
@@ -845,6 +909,7 @@ function ensureState() {
   if (!state.deficits) state.deficits = { weekly: {}, daily: {}, _wk: 0, _day: '' };
   if (state.deficits.weekly === undefined) state.deficits.weekly = {};
   if (state.deficits.daily === undefined) state.deficits.daily = {};
+  if (!state.weekHistory) state.weekHistory = {};
   if (!state.deficits._wk) state.deficits._wk = getPlanStatus().weekNum; // 仅在功能启用后开始记账，不回溯历史周
   if (!state.deficits._day) state.deficits._day = todayStr();
   if (!state.energyLog) state.energyLog = {};
@@ -856,6 +921,8 @@ function ensureState() {
   if (!state.settings.autoPlan && state.settings.autoPlan !== false) state.settings.autoPlan = true;
   if (state.settings.weekdayGoal === undefined) state.settings.weekdayGoal = state.settings.studyGoal || 240;
   if (state.settings.weekendGoal === undefined) state.settings.weekendGoal = Math.round((state.settings.studyGoal || 240) * 1.25);
+  if (!state.settings.fontScale) state.settings.fontScale = '1';
+  if (state.settings.highContrast === undefined) state.settings.highContrast = false;
   ['math','cs408','english','politics'].forEach(s => { if (!state.examStages[s]) state.examStages[s] = {}; });
   if (!state.settings) state.settings = { examDate: '2026-12-19', bedTime: '23:30', studyGoal: 240, theme: 'auto', navOrder: ['daily','exam','life','hobbies','habits'] };
   if (!state.settings.navOrder) state.settings.navOrder = ['daily','exam','life','hobbies','habits'];
@@ -1049,7 +1116,7 @@ function generateDailyTasks() {
   const dow = new Date().getDay(); // 0=周日 .. 6=周六
   const isWeekend = (dow === 0 || dow === 6);
   const wkTag = '（推进第' + st.weekNum + '周）';
-  const mk = (text) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false });
+  const mk = (text) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false, target: 0, logged: 0 });
   if (isWeekend) {
     const arr = [
       mk('数学·张宇 看课 3 节（上午整块时间）' + wkTag),
@@ -1092,7 +1159,7 @@ function copyYesterdayTasks() {
   let added = 0;
   src.forEach(t => {
     if (exist.has(t.text)) return; // 避免重复
-    state.tasks.push({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text: t.text, done: false });
+    state.tasks.push({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text: t.text, done: false, target: 0, logged: 0 });
     added++;
   });
   saveState(); schedulePush(); renderDaily();
@@ -1102,17 +1169,75 @@ function renderDaily() {
   const list = document.getElementById('daily-task-list');
   list.innerHTML = '';
   state.tasks.forEach(t => {
+    const target = t.target || 0, logged = t.logged || 0;
     const div = document.createElement('div');
     div.className = 'task-item' + (t.done ? ' done' : '');
     div.setAttribute('data-id', t.id);
+    let timeRow = '';
+    if (!t.done) {
+      const pct = target > 0 ? Math.min(100, Math.round(logged / target * 100)) : 0;
+      const bar = target > 0 ? `<div class="task-progress ${logged>=target?'done':''}"><i style="width:${pct}%"></i></div><span>${fmtMin(logged)}/${fmtMin(target)}</span>` : '';
+      timeRow = `<div class="task-time">
+        <button class="task-pomo" onclick="startTaskPomodoro('${t.id}')" title="开始番茄钟并计入这条任务">▶ 计时</button>
+        <span>⏱目标</span>
+        <input class="task-target" type="number" min="0" value="${target}" onchange="setTaskTarget('${t.id}', this.value)" title="目标分钟，累计达到自动打勾">
+        <span>分</span>${bar}
+      </div>`;
+    }
     div.innerHTML = `
       <div class="task-check ${t.done ? 'checked' : ''}" onclick="toggleTask('${t.id}')">${t.done ? '✓' : ''}</div>
       <div class="task-text ${t.done ? 'done' : ''}" onclick="editTask('${t.id}')" title="点击修改">${escapeHtml(t.text)}</div>
-      <div class="task-del" onclick="deleteTask('${t.id}')">×</div>`;
+      <div class="task-del" onclick="deleteTask('${t.id}')">×</div>${timeRow}`;
     list.appendChild(div);
   });
+  renderTodayStudy();
   renderDashboard();
   renderCalendar();
+}
+// 今日学习记录：可查看、可改分钟、可删除
+function renderTodayStudy() {
+  const el = document.getElementById('today-study');
+  if (!el) return;
+  const recs = (state.studyRecords || []).filter(r => r.date === todayStr())
+    .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+  const total = recs.reduce((a, r) => a + (r.minutes || 0), 0);
+  if (!recs.length) {
+    el.innerHTML = `<div class="card-sub" style="color:var(--text-secondary)">今天还没记录学习，点「🍅 番茄钟」或生活页快捷按钮记一笔。</div>`;
+    return;
+  }
+  const rows = recs.map(r => {
+    const sub = subjectConfig[r.subject] ? subjectConfig[r.subject].name : r.subject;
+    const badge = r.makeup ? '<span class="category-tag active" style="font-size:11px">补做</span>' : (r.late ? '<span class="category-tag" style="font-size:11px;opacity:.7">熬夜</span>' : '');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span style="flex:1">${sub} ${badge}</span>
+      <input class="task-target" type="number" min="1" value="${r.minutes}" onchange="editStudyRecordMin('${r.id}', this.value)" title="修改分钟" style="width:60px">
+      <span>分</span>
+      <span style="cursor:pointer;color:#e74c3c;font-size:16px" onclick="deleteStudyRecord('${r.id}')" title="删除">×</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="card" style="border-left:4px solid var(--primary)">
+    <div class="card-title">📝 今日学习记录 <span style="font-weight:400;font-size:12px;color:var(--text-secondary)">（共 ${fmtMin(total)}）</span></div>
+    <div class="card-sub">录错了可改分钟或删除；删除会影响时长统计与欠账。</div>
+    ${rows}
+  </div>`;
+}
+function deleteStudyRecord(id) {
+  const before = state.studyRecords.length;
+  state.studyRecords = state.studyRecords.filter(r => r.id !== id);
+  if (state.studyRecords.length === before) return;
+  saveState(); schedulePush(); renderTodayStudy(); renderDashboard(); renderExamCardsLight();
+  toast('已删除该条学习记录');
+}
+function editStudyRecordMin(id, val) {
+  const r = state.studyRecords.find(x => x.id === id);
+  if (!r) return;
+  const m = Math.max(1, Math.round(parseInt(val) || 0));
+  r.minutes = m;
+  saveState(); schedulePush(); renderTodayStudy(); renderDashboard(); renderExamCardsLight();
+}
+// 仅刷新考研页里依赖学习记录的卡片（预算/欠账/薄弱/连胜），避免整页重渲闪烁
+function renderExamCardsLight() {
+  if (state.view === 'exam' && !state.exam.subject) renderExamOverview();
 }
 function editTask(id) {
   const t = state.tasks.find(x => x.id === id);
@@ -1156,9 +1281,49 @@ function addTask() {
   const input = document.getElementById('new-task-input');
   const text = input.value.trim();
   if (!text) return;
-  state.tasks.push({ id: Date.now().toString(), text, done: false });
+  state.tasks.push({ id: Date.now().toString(), text, done: false, target: 0, logged: 0 });
   input.value = '';
   updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
+}
+function setTaskTarget(id, val) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  t.target = Math.max(0, Math.round(parseInt(val) || 0));
+  updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
+}
+function inferSubject(text) {
+  if (/数学|张宇|高数|线代|概率/.test(text)) return 'math';
+  if (/408|王道|计算机|数据结构|计组|操作系统|网络/.test(text)) return 'cs408';
+  if (/英语|单词|阅读|作文|翻译/.test(text)) return 'english';
+  if (/政治|肖|徐|马原|毛中特|思修/.test(text)) return 'politics';
+  return '';
+}
+function startTaskPomodoro(id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  if (pomoTimer) { toast('已有番茄钟在进行，先结束它'); return; }
+  document.getElementById('pomo-name').value = t.text;
+  const subj = inferSubject(t.text) || (state.exam && state.exam.subject) || '';
+  const sel = document.getElementById('pomo-subject');
+  if (sel) sel.value = subj;
+  pendingPomoTask = id;
+  setView('life');
+  // 滚动到番茄钟
+  const el = document.getElementById('pomo-name');
+  if (el) el.scrollIntoView({ block: 'center' });
+  const mins = getPomoMinutes();
+  // 若任务有目标且剩余时间合适，用剩余目标时间作为本次时长
+  if (t.target && t.target > 0) {
+    const remain = t.target - (t.logged || 0);
+    if (remain > 0 && remain < mins) {
+      const presets = document.getElementById('pomo-presets');
+      if (presets) { presets.value = 'custom'; presets.dispatchEvent(new Event('change')); }
+      const custom = document.getElementById('pomo-custom');
+      if (custom) custom.value = remain;
+    }
+  }
+  startPomodoro();
+  toast('番茄钟已绑定到「' + t.text + '」');
 }
 
 // ================= Calendar =================
@@ -1440,18 +1605,7 @@ function dueMistakes() {
   const t = todayStr();
   return allMistakes().filter(m => !m.item.reviewDate || m.item.reviewDate <= t);
 }
-function markReviewed(sub, id) {
-  const arr = state.examData[sub].mistake || [];
-  const it = arr.find(x => x.id === id);
-  if (!it) return;
-  it.reviewCount = (it.reviewCount || 0) + 1;
-  const idx = Math.min(it.reviewCount, REVIEW_INTERVALS.length) - 1;
-  const interval = REVIEW_INTERVALS[Math.max(0, idx)];
-  const d = new Date(); d.setDate(d.getDate() + interval);
-  it.reviewDate = dateStr(d);
-  it.reviewAfter = interval;
-  saveState(); schedulePush(); renderExam();
-}
+function markReviewed(sub, id) { openReviewRating('mistake', sub, id); }
 function renderReviewPlanHtml() {
   const due = dueMistakes();
   const total = allMistakes().length;
@@ -1460,8 +1614,9 @@ function renderReviewPlanHtml() {
     const title = item.title || '错题';
     const overdue = item.reviewDate && item.reviewDate < todayStr();
     const tag = overdue ? `<span class="status-bad" style="font-size:11px">逾期</span>` : `<span class="status-warn" style="font-size:11px">待复习</span>`;
+    const efTag = item.ef ? `<span class="category-tag" style="font-size:10px;opacity:.7">EF ${item.ef.toFixed(2)}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cfg.icon} <b>${escapeHtml(title)}</b> ${tag}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cfg.icon} <b>${escapeHtml(title)}</b> ${tag} ${efTag}</span>
         <button class="btn btn-small btn-primary" onclick="markReviewed('${sub}','${item.id}')">✓ 已复习</button>
       </div>`;
   }).join('');
@@ -1514,23 +1669,51 @@ function addReciteMedia(sub, media) {
   state.recite[sub].push(item);
   saveState(); schedulePush(); renderExam();
 }
-function markRecited(sub, id) {
-  const it = (state.recite[sub] || []).find(x => x.id === id);
-  if (!it) return;
-  it.reviewCount = (it.reviewCount || 0) + 1;
-  const idx = Math.min(it.reviewCount, RECITE_INTERVALS.length) - 1;
-  const interval = RECITE_INTERVALS[Math.max(0, idx)];
-  const d = new Date(); d.setDate(d.getDate() + interval);
-  it.reviewDate = dateStr(d);
-  it.reviewAfter = interval;
-  saveState(); schedulePush(); renderExam();
-}
+function markRecited(sub, id) { openReviewRating('recite', sub, id); }
 function addReciteFromCard() {
   const sub = document.getElementById('recite-sub').value;
   const title = (document.getElementById('recite-title').value || '').trim();
   addRecite(sub, title || '背诵内容');
   const t = document.getElementById('recite-title'); if (t) t.value = '';
 }
+// ================= SM-2 间隔重复 =================
+let _rating = null;
+function sm2InitItem(it) {
+  if (it.ef === undefined) it.ef = 2.5;
+  if (it.reps === undefined) it.reps = it.reviewCount || 0;
+  if (it.interval === undefined) it.interval = it.reviewAfter || 1;
+}
+function applySM2(it, q) {
+  sm2InitItem(it);
+  q = Math.max(0, Math.min(5, q));
+  if (q < 3) { it.reps = 0; it.interval = 1; }
+  else {
+    if (it.reps === 0) it.interval = 1;
+    else if (it.reps === 1) it.interval = 6;
+    else it.interval = Math.round(it.interval * it.ef);
+    it.reps += 1;
+    it.ef = Math.max(1.3, it.ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)));
+  }
+  const d = new Date(); d.setDate(d.getDate() + it.interval);
+  it.reviewDate = dateStr(d);
+  it.reviewAfter = it.interval;
+  it.reviewCount = (it.reviewCount || 0) + 1;
+}
+function openReviewRating(type, sub, id) {
+  _rating = { type, sub, id };
+  document.getElementById('review-rating-title').textContent = '这次复习得怎么样？';
+  document.getElementById('review-rating-modal').classList.add('show');
+  focusModalFirst('review-rating-modal');
+}
+function confirmReviewRating(q) {
+  const r = _rating; if (!r) return;
+  const it = (r.type === 'mistake' ? (state.examData[r.sub].mistake || []) : (state.recite[r.sub] || [])).find(x => x.id === r.id);
+  if (it) { applySM2(it, q); saveState(); schedulePush(); }
+  closeReviewRating();
+  if (state.view === 'exam') renderExam();
+  toast(q >= 3 ? '👍 记得不错，下次拉长间隔' : '🔁 忘了，明天再练');
+}
+function closeReviewRating() { const m = document.getElementById('review-rating-modal'); if (m) m.classList.remove('show'); _rating = null; }
 function reciteDrop(e) {
   e.preventDefault();
   const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/') || f.type === 'application/pdf');
@@ -1553,9 +1736,10 @@ function renderRecitePlanHtml() {
     const cfg = subjectConfig[sub];
     const overdue = item.reviewDate && item.reviewDate < todayStr();
     const tag = overdue ? `<span class="status-bad" style="font-size:11px">逾期</span>` : `<span class="status-warn" style="font-size:11px">待背</span>`;
+    const efTag = item.ef ? `<span class="category-tag" style="font-size:10px;opacity:.7">EF ${item.ef.toFixed(2)}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
         ${mediaThumbHtml(item)}
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cfg.icon} <b>${escapeHtml(item.title)}</b> ${tag}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cfg.icon} <b>${escapeHtml(item.title)}</b> ${tag} ${efTag}</span>
         <button class="btn btn-small btn-primary" onclick="markRecited('${sub}','${item.id}')">✓ 已背</button>
       </div>`;
   }).join('');
@@ -2061,6 +2245,7 @@ function weatherTips(cond, temp) {
 
 // ================= Life Module (番茄钟 + 日历) =================
 let pomoTimer = null;
+let pendingPomoTask = null;
 let lifeCalYear = new Date().getFullYear();
 let lifeCalMonth = new Date().getMonth();
 let lifeSelectedDate = todayStr();
@@ -2088,7 +2273,8 @@ function startPomodoro() {
   const mins = getPomoMinutes();
   const name = document.getElementById('pomo-name').value.trim() || '未命名';
   const subject = document.getElementById('pomo-subject').value || (state.exam && state.exam.subject) || '';
-  state.pomo = { name, subject, totalSec: mins*60, endTime: Date.now() + mins*60000 };
+  state.pomo = { name, subject, totalSec: mins*60, endTime: Date.now() + mins*60000, taskId: pendingPomoTask || null };
+  pendingPomoTask = null;
   saveState();
   pomoTimer = setInterval(tickPomo, 1000);
   renderPomoDisplay();
@@ -2106,9 +2292,25 @@ function finishPomodoro(early) {
   const remainSec = Math.max(0, Math.round((state.pomo.endTime - Date.now())/1000));
   const realSec = early ? (totalSec - remainSec) : totalSec;
   const realMin = Math.max(1, Math.round(realSec/60));
+  const taskId = state.pomo.taskId;
   state.lifeRecords.push({ id: Date.now().toString(), date: todayStr(), name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin) });
   if (state.pomo.subject) {
     state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: state.pomo.subject, minutes: realMin, late: isAfterBedtime() });
+  }
+  // 累计到绑定任务的「时间条」，达到目标自动打勾
+  if (taskId) {
+    const t = state.tasks.find(x => x.id === taskId);
+    if (t) {
+      t.logged = (t.logged || 0) + realMin;
+      if (t.target && t.target > 0 && t.logged >= t.target && !t.done) {
+        t.done = true;
+        if (/张宇/.test(t.text)) bumpCourse('zhangyu', 2);
+        else if (/王道/.test(t.text)) bumpCourse('wangdao', 2);
+        toast(`✅ ${t.text} 已达目标时长，自动完成！`);
+      } else {
+        toast(`已为「${t.text}」累计 ${fmtMin(t.logged)}${t.target?(' / '+fmtMin(t.target)):''}`);
+      }
+    }
   }
   state.pomo = null;
   saveState(); schedulePush();
@@ -2257,6 +2459,29 @@ function applyTheme() {
   else if (t === 'light') dark = false;
   else dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  applyAccessibility();
+}
+function applyAccessibility() {
+  const body = document.body;
+  body.classList.remove('font-lg', 'font-xl', 'hc');
+  const fs = String(state.settings.fontScale || '1');
+  if (fs === '1.15') body.classList.add('font-lg');
+  else if (fs === '1.3') body.classList.add('font-xl');
+  if (state.settings.highContrast) body.classList.add('hc');
+}
+function cycleFontSize() {
+  const order = ['1', '1.15', '1.3'];
+  const cur = String(state.settings.fontScale || '1');
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  state.settings.fontScale = next;
+  applyAccessibility(); saveState(); schedulePush();
+  const label = next === '1' ? '标准' : (next === '1.15' ? '大' : '超大');
+  toast('🔠 字号：' + label);
+}
+function toggleHighContrast() {
+  state.settings.highContrast = !state.settings.highContrast;
+  applyAccessibility(); saveState(); schedulePush();
+  toast(state.settings.highContrast ? '🌗 已开启高对比模式' : '已关闭高对比模式');
 }
 
 // ================= Settings =================
@@ -2266,6 +2491,8 @@ function openSettings() {
   document.getElementById('set-weekday-goal').value = state.settings.weekdayGoal || 240;
   document.getElementById('set-weekend-goal').value = state.settings.weekendGoal || 300;
   document.getElementById('set-theme').value = state.settings.theme || 'auto';
+  document.getElementById('set-font-scale').value = String(state.settings.fontScale || '1');
+  document.getElementById('set-hc').checked = !!state.settings.highContrast;
   document.getElementById('set-reward-days').value = state.settings.rewardDays || 5;
   document.getElementById('set-reward-hours').value = state.settings.rewardHours || 3;
   document.getElementById('set-notif').checked = !!state.settings.notif;
@@ -2283,6 +2510,8 @@ function saveSettings() {
   state.settings.weekendGoal = Math.max(0, parseInt(document.getElementById('set-weekend-goal').value) || 300);
   state.settings.studyGoal = state.settings.weekdayGoal; // 兼容旧字段
   state.settings.theme = document.getElementById('set-theme').value;
+  state.settings.fontScale = document.getElementById('set-font-scale').value || '1';
+  state.settings.highContrast = document.getElementById('set-hc').checked;
   state.settings.rewardDays = Math.min(7, Math.max(1, parseInt(document.getElementById('set-reward-days').value) || 5));
   state.settings.rewardHours = Math.min(20, Math.max(1, parseInt(document.getElementById('set-reward-hours').value) || 3));
   const wantNotif = document.getElementById('set-notif').checked;
@@ -2394,25 +2623,25 @@ function pushNotif(title, body) {
     try { new Notification(title, { body: body }); } catch (e) {}
   }
 }
-// 就寝提醒：每晚到点检查一次
+// 就寝/学习提醒：到点（及之后）自动弹系统通知
 const _notifFired = {};
 function checkReminders() {
   if (!state.settings.notif) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const now = new Date();
-  const hh = now.getHours(), mm = now.getMinutes();
   const today = todayStr();
   const [bh, bm] = (state.settings.bedTime || '23:30').split(':').map(Number);
-  // 就寝提醒
-  if (hh === bh && mm === bm && _notifFired['bed-' + today] !== true) {
+  const bedMin = bh * 60 + bm;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  // 就寝提醒：到达就寝时间起即提醒一次
+  if (nowMin >= bedMin && !_notifFired['bed-' + today]) {
     _notifFired['bed-' + today] = true;
     pushNotif('🌙 该睡了', '该睡觉啦，熬夜伤身也伤脑子。明天再战！');
   }
-  // 学习提醒（晚 19:00，下班后）
-  const studyH = 19, studyM = 0;
-  if (hh === studyH && mm === studyM && _notifFired['study-' + today] !== true) {
+  // 学习提醒：19 点后若今天还没学，提醒一次
+  if (now.getHours() >= 19 && todayStudyMin() === 0 && !_notifFired['study-' + today]) {
     _notifFired['study-' + today] = true;
-    const due = dueMistakes().length;
+    const due = (typeof dueMistakes === 'function') ? dueMistakes().length : 0;
     const msg = due ? `今天还有 ${due} 道错题待复习，开整！` : '下班了，按计划学起来，别让今天的计划溜走～';
     pushNotif('📚 学习时间到', msg);
   }
@@ -2510,6 +2739,7 @@ function reconcileDeficits() {
         if (d > 0) short[s] = d;
       });
       state.deficits.weekly[pw] = short; // 可能为空对象（该周已达标）
+      state.weekHistory[pw] = { metDays: weekMetDays(pw), total: 7 };
     }
   }
   if (curWk > (state.deficits._wk || 0)) state.deficits._wk = curWk;
@@ -2646,6 +2876,34 @@ function weakSubjects() {
   return ['math','cs408','english','politics'].filter(s => totals[s] > 0)
     .map(s => ({ sub: s, mins: totals[s] }))
     .sort((a, b) => b.mins - a.mins);
+}
+// 某科目最近 n 个已完成周的每周实际投入
+function recentWeeksActual(sub, n) {
+  const cur = currentWeekNum();
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const pw = cur - 1 - i;
+    if (pw < 1) { out.push({ pw, actual: 0, budget: 0 }); continue; }
+    const actual = subjectActualForWeek(pw)[sub] || 0;
+    out.push({ pw, actual, budget: PLAN.weeklyBudget[sub] || 0 });
+  }
+  return out;
+}
+// 睡眠-学习相关性：睡<6h vs 睡>=6h 的次日平均学习时长
+function sleepStudyInsight() {
+  const sleeps = {};
+  (state.habit.records || []).forEach(r => { if (r.durationMin) sleeps[r.date] = r.durationMin; });
+  const dates = Object.keys(sleeps);
+  if (!dates.length) return null;
+  const short = [], long = [];
+  (state.studyRecords || []).forEach(r => {
+    const sl = sleeps[r.date];
+    if (sl === undefined) return;
+    (sl < 360 ? short : long).push(r.minutes || 0);
+  });
+  if (!short.length || !long.length) return null;
+  const avg = a => Math.round(a.reduce((x, y) => x + y, 0) / a.length);
+  return { shortAvg: avg(short), longAvg: avg(long), shortN: short.length, longN: long.length };
 }
 // 每周达标首次达成时，把奖励分钟存入“爱好时间银行”（每周只存一次）
 function creditHobbyBank() {
@@ -2824,7 +3082,17 @@ function renderDashboard() {
       <div class="card-sub">还差 <b>${Math.max(0, rd - metDays)}</b> 天即可解锁爱好奖励<br>近7天达到每日目标的次数</div>
     </div>
   </div>`;
-  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + ruleCard + phaseTl + `
+  // 睡眠-学习关联
+  const sl = sleepStudyInsight();
+  let sleepInsightHtml = '';
+  if (sl) {
+    const diff = sl.longAvg - sl.shortAvg;
+    sleepInsightHtml = `<div class="card">
+      <div class="card-title">😴 睡眠-学习关联</div>
+      <div class="card-sub">睡&lt;6h的日子（${sl.shortN}天）次日平均学 <b>${fmtMin(sl.shortAvg)}</b>；睡≥6h（${sl.longN}天）平均 <b>${fmtMin(sl.longAvg)}</b>。<br>${diff > 0 ? '多睡一点，第二天能多学 ' + fmtMin(diff) + '，早睡真的值得 💤' : '数据还不够明显，继续记录看看～'}</div>
+    </div>`;
+  }
+  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
       <div class="dash-card"><div class="dash-num">${fmtMin(todayStudy)}</div><div class="dash-label">今日学习</div></div>
@@ -3011,6 +3279,58 @@ function renderExamOverview() {
     </div>
   </div>`;
 
+  // 近8周达标天数趋势
+  const histWeeks = [];
+  const curWkT = getPlanStatus().weekNum;
+  for (let i = 8; i >= 1; i--) {
+    const pw = curWkT - i;
+    if (pw < 1) continue;
+    const h = state.weekHistory[pw];
+    histWeeks.push({ pw, met: h ? h.metDays : 0 });
+  }
+  let weekTrendHtml = '';
+  if (histWeeks.length) {
+    const bars = histWeeks.map(w => {
+      const pct = Math.min(100, Math.round(w.met / 7 * 100));
+      return `<div style="flex:1;text-align:center">
+        <div style="height:54px;display:flex;align-items:flex-end;justify-content:center">
+          <div style="width:72%;background:${pct>=70?'var(--primary)':'#e0a06a'};border-radius:4px 4px 0 0;height:${pct}%"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);font-weight:600">${w.met}</div>
+        <div style="font-size:9px;color:var(--text-secondary)">W${w.pw}</div>
+      </div>`;
+    }).join('');
+    weekTrendHtml = `<div class="card">
+      <div class="card-title">📈 近${histWeeks.length}周达标天数</div>
+      <div class="card-sub">每周达到每日目标的次数（目标 ${state.settings.rewardDays||5} 天解锁爱好奖励）</div>
+      <div style="display:flex;gap:3px;align-items:flex-end;margin-top:6px">${bars}</div>
+    </div>`;
+  }
+
+  // 近4周每科投入（薄弱科目）
+  let weakTrendHtml = '';
+  if (weak.length) {
+    const rows = weak.slice(0, 3).map(w => {
+      const hist = recentWeeksActual(w.sub, 4);
+      const bars = hist.map(h => {
+        const pct = h.budget ? Math.min(100, Math.round(h.actual / h.budget * 100)) : 0;
+        return `<div title="${h.pw}周: ${fmtMin(h.actual)}/${fmtMin(h.budget)}" style="flex:1;height:36px;display:flex;align-items:flex-end;justify-content:center">
+          <div style="width:72%;background:${pct>=80?'#2e9e5b':pct>=50?'var(--primary)':'#e0a06a'};border-radius:3px 3px 0 0;height:${Math.max(4,pct)}%"></div>
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:8px">
+        <div style="font-size:13px;font-weight:600">${subjectConfig[w.sub].icon} ${subjectConfig[w.sub].name}</div>
+        <div style="display:flex;gap:4px">${bars}</div>
+        <div style="display:flex;gap:4px;font-size:9px;color:var(--text-secondary)"><span style="flex:1;text-align:center">-3</span><span style="flex:1;text-align:center">-2</span><span style="flex:1;text-align:center">-1</span><span style="flex:1;text-align:center">上周</span></div>
+      </div>`;
+    }).join('');
+    weakTrendHtml = `<div class="card" style="border-left:4px solid #f3832c;background:linear-gradient(135deg,#fff7ef,#fff)">
+      <div class="card-title">📊 近4周每科投入</div>
+      <div class="card-sub">每根柱子=那周实际/预算，绿=达标 橙=欠账</div>
+      ${rows}
+    </div>`;
+  }
+
   // 看课进度（张宇 / 王道）
   const courseCard = renderCourseTrackerHtml();
 
@@ -3050,7 +3370,7 @@ function renderExamOverview() {
     </div>`;
 
   el.innerHTML = phaseBanner + renderPhaseTimeline() + weekPlanCard + subjectGridHtml
-    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + deficitCard + weakHtml + streakHtml + courseCard + msCard + `
+    + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + deficitCard + weakHtml + streakHtml + weekTrendHtml + weakTrendHtml + courseCard + msCard + `
     <div class="card">
       <div class="card-title">📈 近14天学习时长</div>
       <canvas id="exam-trend" class="chart"></canvas>
@@ -3311,7 +3631,7 @@ document.addEventListener('click', e => {
   if (sheet && sheet.classList.contains('show') && !sheet.contains(e.target) && e.target.id !== 'fab') sheet.classList.remove('show');
 });
 // 弹窗：Esc 关闭 + Tab 焦点锁定在当前弹窗内（减少误操作与界面跳动）
-const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal'];
+const _MODAL_IDS = ['makeup-modal', 'settings-modal', 'review-modal', 'report-modal', 'review-rating-modal'];
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     let closed = false;
@@ -3331,6 +3651,15 @@ document.addEventListener('keydown', e => {
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
+  // 桌面快捷键（输入框聚焦时不触发）
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'n') { e.preventDefault(); setView('daily'); const i = document.getElementById('new-task-input'); if (i) i.focus(); }
+  else if (k === 't') { e.preventDefault(); setView('life'); const i = document.getElementById('pomo-name'); if (i) i.focus(); }
+  else if (k === 's') { e.preventDefault(); openSettings(); }
+  else if (k === 'm') { e.preventDefault(); fabMakeup(); }
 });
 function focusModalFirst(id) {
   const m = document.getElementById(id);
