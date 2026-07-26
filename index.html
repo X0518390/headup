@@ -947,18 +947,22 @@ const PLAN = {
     { key: 'chushi',  name: '初试',         date: '2026-12-19' },
     { key: 'fushi',   name: '复试',         date: '2027-03-20' }
   ],
+  // 看课进度 = 看「视频课」的节数（节＝一节视频）。套卷/真题是做题，不在这里（另有套卷计数）。
+  // 数学二：基础30讲（高数18讲+线代6讲=24讲，约90节）→ 强化高数18讲 → 强化线代9讲
+  // 408：王道四本，按 数据结构→组成原理→操作系统→计算机网络 顺序
   courses: {
-    zhangyu:  { name: '张宇基础30讲（数学二）',      total: 85, subj: 'math',  pace: 12, deadline: '2026-09-24', note: '基础阶段：工作日1.5-2节 / 周末3-4节' },
-    gaoshu18: { name: '高数18讲（数学二）',          total: 18, subj: 'math',  pace: 4,  deadline: '', note: '强化阶段：高数系统强化跟练' },
-    xianxing9:{ name: '线代9讲（数学二）',           total: 9,  subj: 'math',  pace: 2,  deadline: '', note: '强化阶段：线代系统强化' },
-    zhangyu84:{ name: '张宇8+4 / 李林6+4 模拟卷',   total: 12, subj: 'math',  pace: 3,  deadline: '', note: '冲刺阶段：保持手感' },
-    wangdao:  { name: '王道数据结构（408）',         total: 80, subj: 'cs408', pace: 9,  deadline: '2026-09-24', note: '基础阶段：与数学并行，工作日1.5-2节 / 周末3-4节' },
-    wangdao8: { name: '王道8套卷（408）',            total: 8,  subj: 'cs408', pace: 2,  deadline: '', note: '冲刺阶段：套卷模拟' }
+    zhangyu:    { name: '张宇基础30讲（数二：高数18+线代6）', total: 90, subj: 'math',  pace: 12, deadline: '2026-09-24', note: '基础：高数18讲+线代6讲=24讲，约90节。工作日1.5-2节 / 周末3-4节' },
+    zhangyu_gs: { name: '张宇高数18讲（强化）',             total: 50, subj: 'math',  pace: 6,  deadline: '2026-10-31', note: '强化：高数系统强化跟练（W10–W12）' },
+    zhangyu_xd: { name: '张宇线代9讲（强化）',              total: 28, subj: 'math',  pace: 3,  deadline: '2026-11-04', note: '强化：线代系统强化（W13）' },
+    wangdao:    { name: '王道数据结构（408）',              total: 80, subj: 'cs408', pace: 9,  deadline: '2026-09-24', note: '基础：8章约80节。与数学并行，工作日1.5-2节 / 周末3-4节' },
+    wangdao_cy: { name: '王道组成原理（408）',              total: 55, subj: 'cs408', pace: 6,  deadline: '', note: '组成原理视频（基础补弱+强化）' },
+    wangdao_os: { name: '王道操作系统（408）',              total: 45, subj: 'cs408', pace: 5,  deadline: '', note: '操作系统视频（强化 W11–W13）' },
+    wangdao_cn: { name: '王道计算机网络（408）',            total: 35, subj: 'cs408', pace: 4,  deadline: '', note: '计算机网络视频（强化 W13）' }
   },
-  // 看课顺序：每科按阶段推进；上一门看完会自动加入该科目下一门（结束日期自己填）
+  // 看课顺序：每科按阶段推进；上一门看完会自动加入该科目下一门（结束日期自己填，有默认则自动带入）
   courseSeq: {
-    math:  ['zhangyu', 'gaoshu18', 'xianxing9', 'zhangyu84'],
-    cs408: ['wangdao', 'wangdao8']
+    math:  ['zhangyu', 'zhangyu_gs', 'zhangyu_xd'],
+    cs408: ['wangdao', 'wangdao_cy', 'wangdao_os', 'wangdao_cn']
   },
   rules: [
     '睡眠第一、不熬夜——精力才是持久战的本钱',
@@ -1094,14 +1098,14 @@ function ensureState() {
   if (!state.courseActive) state.courseActive = ['zhangyu', 'wangdao'];
   if (!state.courseDeadline) state.courseDeadline = { zhangyu: '2026-09-24', wangdao: '2026-09-24' };
   if (!state.planFiles) state.planFiles = [];
-  if (!state._seededPlanFilesV1) {
-    // 首次进入：放进三份规划资料占位（用户可随时删改/替换成自己的文件）
+  if (!state._seededPlanFilesV2) {
+    // 三份规划资料（来自用户的复习计划 / 张宇节奏 / 王道节奏 PDF），放在仓库 plan/ 下，部署后可直接点开
     state.planFiles = [
-      { id: 'pf1', name: '数学二(302)考试大纲与范围', url: '', note: '教育部公布的数二考点范围，复习对照用' },
-      { id: 'pf2', name: '408统考考试大纲(数据结构/计组/OS/计网)', url: '', note: '官方统考大纲' },
-      { id: 'pf3', name: '全年周计划汇总(勾划安排 W1–W20)', url: '', note: '各科每周安排总表' }
+      { id: 'pf_plan', name: '南开电子信息非全考研复习计划（总览）', url: 'plan/kaoyan-plan.pdf', note: '整体复习计划：科目、5阶段(W1–W20)、每周安排、资料清单' },
+      { id: 'pf_zy',  name: '张宇基础30讲 每日看课节奏',              url: 'plan/zhangyu-pace.pdf', note: '数二看课节奏：高数18讲+线代6讲=24讲，约90节' },
+      { id: 'pf_wd',  name: '王道数据结构 每日看课节奏',              url: 'plan/wangdao-pace.pdf', note: '408数据结构看课节奏：8章约80节' }
     ];
-    state._seededPlanFilesV1 = true;
+    state._seededPlanFilesV2 = true;
     saveState();
   }
   if (!state.weeklyReview) state.weeklyReview = {};
@@ -4483,7 +4487,7 @@ function renderCourseTrackerHtml() {
   }).join('');
   return `<div class="card">
     <div class="card-title">📺 看课进度</div>
-    <div class="card-sub">看完一节就 +1；一门看完会自动加入该科目下一门（结束日期自己填）。</div>
+    <div class="card-sub">看「视频课」的节数，看完一节就 +1。数学二：基础30讲 → 强化高数18讲 → 强化线代9讲；408：王道数据结构 → 组成原理 → 操作系统 → 计网。一门看完自动加入下一门（套卷/真题是做题，不算看课）。</div>
     ${rows}
   </div>`;
 }
@@ -4510,7 +4514,7 @@ function maybeAdvanceCourse(key) {
   if (state.courseActive.indexOf(nextKey) >= 0) return; // 已加入
   state.courseActive.push(nextKey);
   if (!state.courseDeadline) state.courseDeadline = {};
-  if (!state.courseDeadline[nextKey]) state.courseDeadline[nextKey] = '';
+  if (!state.courseDeadline[nextKey]) state.courseDeadline[nextKey] = (PLAN.courses[nextKey] && PLAN.courses[nextKey].deadline) || '';
   if (state.courses[nextKey] === undefined) state.courses[nextKey] = 0;
   toast('🎉「' + c.name + '」已完成，已自动加入下一门：' + PLAN.courses[nextKey].name);
 }
