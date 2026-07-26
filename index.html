@@ -1453,15 +1453,12 @@ function checkNewDay() {
   reconcileDeficits();
   const today = todayStr();
   if (state.lastTaskDate !== today) {
-    if (state.settings.autoPlan) {
-      state.tasks = generateDailyTasks();
-    } else {
-      state.tasks.forEach(t => t.done = false);
-    }
+    // 新的一天：按固定规划重置三项任务（清空进度）
+    state.tasks = generateDailyTasks();
     state.lastTaskDate = today;
     saveState();
-  } else if (state.settings.autoPlan) {
-    // 同一天：保持规划的三项任务，并保留已记录的进度（避免每次刷新清空）
+  } else {
+    // 同一天：保持三项任务，并保留已记录的进度（避免每次刷新清空）
     const planned = generateDailyTasks();
     const byText = {};
     (state.tasks || []).forEach(t => { if (t && t.text) byText[normTaskText(t.text)] = t; });
@@ -5213,7 +5210,7 @@ function init() {
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=10').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=11').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
       if (e.data && e.data.type === 'STOP_ALARM') { stopAlarm(); dismissMemoAlarm(); }
