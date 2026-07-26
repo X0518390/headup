@@ -245,6 +245,16 @@
       padding: 5px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
     }
 
+    /* 设备偏好深色（含系统深色）时自动套用深色变量；用户显式选「浅色」时让位。
+       兜底用，避免主题脚本未加载完或检测异常时仍是浅底。 */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:#1c1c1e; --card:#2c2c2e; --text:#ffffff; --text-secondary:#a0a0a5;
+        --border:#3a3a3c; --primary-light:#3d2f22; --shadow:0 2px 12px rgba(0,0,0,.4);
+        --rec-a:#3d2f22; --rec-b:#2c2c2e; --warn-a:#4a2520; --warn-b:#2c2c2e; --hero-a:#a85510; --hero-b:#c2691e;
+      }
+    }
+
     /* 字号缩放：作用于内容和侧栏，%overflow-x 可横向滚动，不会裁切 */
     .content { overflow-x: auto; }
     body.font-lg .content, body.font-lg .sidebar { zoom: 1.15; }
@@ -2759,6 +2769,9 @@ function applyTheme() {
   else if (t === 'light') dark = false;
   else dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  // 声明页面自身的 color-scheme，退出浏览器「强制深色」的后期反色，
+  // 避免浅色页面被反成“白字浅底”导致看不清（由 App 自己的主题完全掌控配色）
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   applyAccessibility();
 }
 function applyAccessibility() {
