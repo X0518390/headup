@@ -3110,11 +3110,17 @@ function downloadMemoIcs(id) {
     params.set('desc', [m.text, m.link ? ('链接: ' + m.link) : ''].filter(Boolean).join('\n'));
     if (m.link) params.set('url', m.link.replace(/[\r\n]/g, ''));
     const icsUrl = 'reminder.ics?' + params.toString();
-    const opened = window.open(icsUrl, '_blank');
-    if (opened) {
-      toast('已唤起系统日历，请选择「添加到日历」');
-    } else {
-      // 弹窗被拦截时回退到 blob 下载/打开
+    // iOS PWA / Safari 中 window.open('_blank') 会打开没有共享 Service Worker 的新浏览上下文，
+    // 导致 /reminder.ics 没被 SW 拦截而 404。改用当前页内的隐藏 iframe，让请求始终在本 SW 作用域内。
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.name = 'ics-frame-' + m.id;
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(iframe);
+      iframe.src = icsUrl;
+      setTimeout(() => { try { iframe.remove(); } catch (e) {} }, 8000);
+      toast('已生成日历文件，请从屏幕顶部通知或「文件」App 中点击以添加到日历');
+    } catch (e) {
       fallbackIcs(blob);
     }
     return;
