@@ -438,7 +438,6 @@
               <input class="input" id="new-task-input" placeholder="输入新任务...">
               <button class="btn btn-primary" onclick="addTask()">添加</button>
             </div>
-            <div id="today-study" style="margin-top:14px"></div>
           </div>
         </div>
       </div>
@@ -1392,7 +1391,6 @@ function renderDaily() {
       <div class="task-del" onclick="deleteTask('${t.id}')">×</div>${timeRow}${linkRow}`;
     list.appendChild(div);
   });
-  renderTodayStudy();
   renderDashboard();
   renderCalendar();
 }
@@ -1423,26 +1421,7 @@ function renderTodayStudy() {
     ${rows}
   </div>`;
 }
-function deleteStudyRecord(id) {
-  const rec = state.studyRecords.find(x => x.id === id);
-  const before = state.studyRecords.length;
-  state.studyRecords = state.studyRecords.filter(r => r.id !== id);
-  if (state.studyRecords.length === before) return;
-  // 同步回退对应每日任务的「时间条」累计：误删记录后进度条也要跟着减
-  if (rec && rec.taskId) {
-    const t = state.tasks.find(x => x.id === rec.taskId);
-    if (t) {
-      t.logged = Math.max(0, (t.logged || 0) - (rec.minutes || 0));
-      if (t.target && t.target > 0 && t.logged < t.target && t.done) {
-        t.done = false;
-        if (/张宇/.test(t.text)) bumpCourse('zhangyu', -2);
-        else if (/王道/.test(t.text)) bumpCourse('wangdao', -2);
-      }
-    }
-  }
-  saveState(); schedulePush(); renderTodayStudy(); renderDaily(); renderDashboard(); renderExamCardsLight();
-  toast('已删除该条学习记录');
-}
+function deleteStudyRecord(id) { deleteStudySession(id); }
 function editStudyRecordMin(id, val) {
   const r = state.studyRecords.find(x => x.id === id);
   if (!r) return;
@@ -2676,9 +2655,9 @@ function finishPomodoro(early) {
   const realSec = early ? (totalSec - remainSec) : totalSec;
   const realMin = Math.max(1, Math.round(realSec/60));
   const taskId = state.pomo.taskId;
-  state.lifeRecords.push({ id: Date.now().toString(), date: todayStr(), name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin) });
+  state.lifeRecords.push({ id: Date.now().toString(), date: todayStr(), name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin), src: 'pomo' });
   if (state.pomo.subject) {
-    state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: state.pomo.subject, minutes: realMin, late: isAfterBedtime(), taskId: taskId || null });
+    state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: state.pomo.subject, minutes: realMin, late: isAfterBedtime(), taskId: taskId || null, src: 'pomo' });
   }
   // 累计到绑定任务的「时间条」，达到目标自动打勾
   if (taskId) {
@@ -2794,10 +2773,44 @@ function addLifeEvent() {
   const el = document.getElementById('life-event-name');
   const name = el.value.trim();
   if (!name) return;
-  state.lifeRecords.push({ id: Date.now().toString(), date: lifeSelectedDate, name, durationMin: null, durationText: '' });
+  state.lifeRecords.push({ id: Date.now().toString(), date: lifeSelectedDate, name, durationMin: null, durationText: '', src: 'manual' });
   saveState(); schedulePush(); renderLifeCalendar();
 }
-function deleteLifeRecord(id) { state.lifeRecords = state.lifeRecords.filter(r => r.id !== id); saveState(); schedulePush(); renderLifeCalendar(); }
+function deleteLifeRecord(id) { deleteStudySession(id); }
+// 删除一条番茄钟/学习会话：一条番茄钟会同时写入 生活日历(lifeRecords) 与 学习记录(studyRecords)（共用同一 id）。
+// 这里一次性清理两边，并回退绑定任务的进度条、回退爱好时间银行的分钟数，再刷新所有相关视图，保证数据一致。
+function deleteStudySession(id) {
+  const lifeRec = state.lifeRecords.find(x => x.id === id);
+  const studyRec = state.studyRecords.find(x => x.id === id);
+  const beforeLife = state.lifeRecords.length;
+  state.lifeRecords = state.lifeRecords.filter(r => r.id !== id);
+  state.studyRecords = state.studyRecords.filter(r => r.id !== id);
+  if (state.lifeRecords.length === beforeLife) { toast('未找到该记录'); return; }
+  // 回退绑定任务的「时间条」累计（今日任务的进度条分钟数）
+  if (studyRec && studyRec.taskId) {
+    const t = state.tasks.find(x => x.id === studyRec.taskId);
+    if (t) {
+      t.logged = Math.max(0, (t.logged || 0) - (studyRec.minutes || 0));
+      if (t.target && t.target > 0 && t.logged < t.target && t.done) {
+        t.done = false;
+        if (/张宇/.test(t.text)) bumpCourse('zhangyu', -2);
+        else if (/王道/.test(t.text)) bumpCourse('wangdao', -2);
+      }
+    }
+  }
+  // 回退爱好时间银行（仅番茄钟产生的记录会攒 8 分钟/个；手动添加不回退）
+  if (lifeRec && lifeRec.src === 'pomo') {
+    state.hobbyBank = Math.max(0, (state.hobbyBank || 0) - BANK_PER_POMO);
+  }
+  saveState(); schedulePush();
+  if (state.view === 'life') renderLife();
+  if (state.view === 'daily') renderDaily();
+  renderDashboard();
+  if (state.view === 'exam') renderExam(); else renderExamCardsLight();
+  renderStudyStats();
+  renderHobbies();
+  toast('已删除该条记录，相关统计已同步更新');
+}
 
 function addNote() {
   const el = document.getElementById('note-input');
