@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lamb-workbench-v12';
+const CACHE_NAME = 'lamb-workbench-v13';
 // 相对路径:兼容 GitHub Pages 子路径(/headup/)与 Vercel 根路径部署
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
@@ -82,10 +82,12 @@ self.addEventListener('fetch', event => {
     }
   } catch (e) {}
 
-  // Navigation: 完全 no-store，绕过所有缓存层（浏览器 HTTP 缓存 + CDN 边缘缓存），
-  // 直接从网络拉取最新 HTML。这是解决 iOS Safari 等移动浏览器激进缓存导致看不到新版本的关键。
+  // Navigation: 完全 no-store + 追加唯一查询参数，强制 CDN 边缘 cache miss，
+  // 保证每次导航都从 GitHub Pages 源站拉到最新 HTML（解决 CDN max-age=600 缓存旧版导致用户看不到新代码的问题）
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    const url = new URL(event.request.url);
+    const freshUrl = url.pathname + '?t=' + Date.now();
+    event.respondWith(fetch(freshUrl, { cache: 'no-store' }));
     return;
   }
   event.respondWith(
