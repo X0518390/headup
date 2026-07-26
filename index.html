@@ -354,6 +354,18 @@
     .reward-name { font-size: 14px; font-weight: 600; margin: 4px 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .reward-min { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
     .reward-add { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; align-items: flex-end; }
+    /* 紧凑版兴趣银行（放在「兴趣爱好」标题下方，占更小面积） */
+    .reward-bank-compact { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 14px; }
+    .reward-bank-compact .rb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .reward-bank-compact .rb-title { font-size: 15px; font-weight: 700; }
+    .reward-bank-compact .rb-bal { font-size: 15px; font-weight: 800; color: var(--primary); white-space: nowrap; }
+    .reward-grid.compact { grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 8px; margin-top: 0; }
+    .reward-card.compact { padding: 8px 6px 6px; border-radius: 10px; }
+    .reward-card.compact .reward-icon { font-size: 22px; }
+    .reward-card.compact .reward-name { font-size: 12px; margin: 2px 0 1px; }
+    .reward-card.compact .reward-min { font-size: 11px; margin-bottom: 5px; }
+    .reward-card.compact .btn { font-size: 11px; padding: 4px 0; }
+    .reward-add.compact { margin-top: 10px; }
     #reward-timer-float {
       position: fixed; right: 14px; bottom: 86px; z-index: 500; width: 150px;
       background: linear-gradient(135deg, #f3832c, #ff9a4d); border-radius: 18px; padding: 10px 8px;
@@ -445,8 +457,8 @@
       <div id="view-hobbies" class="hidden">
         <div id="hobbies-list">
           <div id="hobby-lock" class="hidden"></div>
-          <div id="interest-bank-mount"></div>
           <div class="section-title">🎨 兴趣爱好</div>
+          <div id="interest-bank-mount"></div>
           <div class="hobby-grid" id="hobby-grid"></div>
           <div class="card" style="margin-top:16px">
             <div class="card-title">➕ 添加收藏</div>
@@ -581,6 +593,18 @@
           <div class="form-row"><input class="input" id="note-input" placeholder="想做的事…"></div>
           <button class="btn btn-primary btn-block" id="add-note-btn" onclick="addNote()">添加</button>
           <div id="note-list" style="margin-top:12px"></div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">⏰ 定时提醒（备忘录）</div>
+          <div class="card-sub">到点自动弹窗 + 响铃；适合抢购开售、缴费截止等</div>
+          <div class="form-row"><input class="input" id="memo-time" type="datetime-local" style="flex:1"></div>
+          <div class="form-row"><input class="input" id="memo-text" placeholder="提醒内容（如：某商品开售）" style="flex:1"></div>
+          <div class="form-row"><input class="input" id="memo-link" placeholder="链接（可选）" style="flex:1"></div>
+          <div class="form-row" style="align-items:center;gap:8px">
+            <input type="file" class="input" id="memo-image" accept="image/*" style="flex:1">
+            <button class="btn btn-primary btn-small" onclick="addMemo()">添加提醒</button>
+          </div>
+          <div id="memo-list" style="margin-top:12px"></div>
         </div>
       </div>
   </main>
@@ -1002,11 +1026,42 @@ function ensureState() {
   if (!state.hobbyOpen) state.hobbyOpen = null;
   if (!state.hobbyFilter) state.hobbyFilter = 'all';
   if (!state.habit) state.habit = { records: [] };
+  // 迁移旧数据：跨午夜被「入睡/起床」拆成两条的记录，合并为一段睡眠（含时长）
+  if (!state._mergedSleepV2 && state.habit && state.habit.records) {
+    const recs = state.habit.records;
+    for (let i = 0; i < recs.length; i++) {
+      const a = recs[i];
+      if (a.sleep && !a.wake) {
+        for (let j = 0; j < recs.length; j++) {
+          if (i === j) continue;
+          const b = recs[j];
+          if (!b.sleep && b.wake) {
+            const ad = new Date((a.date || '') + 'T00:00:00');
+            const bd = new Date((b.date || '') + 'T00:00:00');
+            const diffDays = Math.round((bd - ad) / 86400000);
+            if (diffDays >= 0 && diffDays <= 2) {
+              a.wake = b.wake;
+              a.date = b.date; // 归属到起床当天
+              a.duration = calcDuration(a.sleep, a.wake);
+              a.durationMin = durationMin(a.sleep, a.wake);
+              a.id = a.id || ('s' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+              recs.splice(j, 1);
+              saveState();
+              break;
+            }
+          }
+        }
+      }
+    }
+    state._mergedSleepV2 = true;
+    saveState();
+  }
   if (!state.examData) state.examData = {};
   if (!state.dailyHistory) state.dailyHistory = {};
   if (!state.lastTaskDate) state.lastTaskDate = '';
   if (!state.lifeRecords) state.lifeRecords = [];
   if (!state.lifeNotes) state.lifeNotes = [];
+  if (!state.memos) state.memos = [];
   if (!state.studyRecords) state.studyRecords = [];
   if (!state.examStages) state.examStages = {};
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
@@ -2431,14 +2486,20 @@ function bindCollectDrop() {
 
 // ================= Habits Module =================
 function renderHabits() {
-  const records = state.habit.records.slice().sort((a,b) => b.date.localeCompare(a.date));
+  const records = state.habit.records.slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
   const list = document.getElementById('sleep-history');
   list.innerHTML = '';
   if (records.length === 0) { list.innerHTML = '<div class="empty">还没有记录</div>'; }
   records.forEach(r => {
+    const id = r.id || (r.id = 's' + Math.random().toString(36).slice(2, 9));
+    let line;
+    if (r.sleep && r.wake) line = `💤 ${r.sleep} → ☀️ ${r.wake} · <b style="color:var(--text)">睡眠 ${r.duration || '--'}</b>`;
+    else if (r.sleep) line = `💤 ${r.sleep} 睡（未起床）`;
+    else if (r.wake) line = `☀️ ${r.wake} 起（未记录入睡）`;
+    else line = '—';
     const div = document.createElement('div');
     div.className = 'history-item';
-    div.innerHTML = `<div><strong>${r.date}</strong><br><span style="font-size:13px;color:#666">${r.sleep || '--'} 睡 · ${r.wake || '--'} 起 · ${r.duration || '--'}</span></div><div class="task-del" onclick="deleteHabitRecord('${r.date}')">删除</div>`;
+    div.innerHTML = `<div><strong>${r.date}</strong><br><span style="font-size:13px;color:var(--text-secondary)">${line}</span></div><div class="task-del" onclick="deleteHabitRecord('${id}')">删除</div>`;
     list.appendChild(div);
   });
   renderSleepSummary();
@@ -2465,35 +2526,42 @@ function renderSleepSummary() {
     <div class="stat-card"><div class="stat-num">${fmt(avg(monthDur))}</div><div class="stat-label">近30天平均</div></div>
     <div class="stat-card"><div class="stat-num">${records.length}</div><div class="stat-label">打卡天数</div></div>`;
 }
-function deleteHabitRecord(date) {
-  if (!confirm(`删除 ${date} 的打卡记录？`)) return;
-  state.habit.records = state.habit.records.filter(r => r.date !== date);
+function deleteHabitRecord(id) {
+  const rec = state.habit.records.find(r => r.id === id);
+  if (!rec) return;
+  const label = `${rec.date} ${rec.sleep || ''} 睡 ${rec.wake || ''} 起`;
+  if (!confirm(`删除这条睡眠记录（${label}）？`)) return;
+  state.habit.records = state.habit.records.filter(r => r.id !== id);
   saveState(); schedulePush(); renderHabits();
 }
+function findOpenSleep() {
+  // 找到「已记录入睡、但尚未起床」的那条记录（即进行中的一段睡眠）
+  return state.habit.records.find(r => r.sleep && !r.wake) || null;
+}
+function newSleepRec() {
+  return { id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), date: todayStr(), sleep: '', wake: '', duration: '', durationMin: 0 };
+}
 function recordSleep() {
-  const date = todayStr();
   const time = nowTimeStr();
-  let rec = state.habit.records.find(r => r.date === date);
-  if (!rec) { rec = { date }; state.habit.records.push(rec); }
-  rec.sleep = time; rec.wake = rec.wake || '';
-  rec.duration = rec.wake ? calcDuration(rec.sleep, rec.wake) : '';
-  rec.durationMin = rec.wake ? durationMin(rec.sleep, rec.wake) : 0;
+  let rec = findOpenSleep();
+  if (!rec) { rec = newSleepRec(); state.habit.records.push(rec); }
+  rec.sleep = time; rec.wake = ''; rec.duration = ''; rec.durationMin = 0;
   saveState(); schedulePush(); renderHabits();
   if (state.view === 'daily') renderDaily();
   alert(`已记录睡觉时间：${time}`);
 }
 function recordWake() {
-  const date = todayStr();
   const time = nowTimeStr();
-  let rec = state.habit.records.find(r => r.date === date);
-  if (!rec) { rec = { date }; state.habit.records.push(rec); }
-  rec.wake = time; rec.sleep = rec.sleep || '';
+  let rec = findOpenSleep();
+  if (!rec) { rec = newSleepRec(); state.habit.records.push(rec); }
+  rec.wake = time;
+  rec.date = todayStr(); // 归属到起床当天
   rec.duration = calcDuration(rec.sleep, rec.wake);
   rec.durationMin = durationMin(rec.sleep, rec.wake);
   saveState(); schedulePush(); renderHabits();
   if (state.view === 'daily') renderDaily();
   fetchWeather();
-  alert(`已记录起床时间：${time}，睡眠时长：${rec.duration}`);
+  alert(`已记录起床时间：${time}${rec.sleep ? ('，睡眠时长：' + rec.duration) : '（未记录入睡时间）'}`);
 }
 function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function todayStr() { return dateStr(new Date()); }
@@ -2556,7 +2624,7 @@ let lifeCalMonth = new Date().getMonth();
 let lifeSelectedDate = todayStr();
 
 function renderLife() {
-  renderPomoDisplay(); renderStudyStats(); renderLifeCalendar(); renderNotes();
+  renderPomoDisplay(); renderStudyStats(); renderLifeCalendar(); renderNotes(); renderMemos();
   const sel = document.getElementById('pomo-subject');
   if (sel && !sel.value && state.exam && state.exam.subject) sel.value = state.exam.subject;
 }
@@ -2741,6 +2809,124 @@ function renderNotes() {
 }
 function checkNote(id) { state.lifeNotes = state.lifeNotes.filter(n => n.id !== id); saveState(); schedulePush(); renderNotes(); }
 
+// ================= 定时提醒备忘录（弹窗 + 响铃） =================
+function newMemoId() { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+function addMemo() {
+  const timeEl = document.getElementById('memo-time');
+  const textEl = document.getElementById('memo-text');
+  const linkEl = document.getElementById('memo-link');
+  const imgEl = document.getElementById('memo-image');
+  const time = (timeEl.value || '').trim();
+  const text = (textEl.value || '').trim();
+  if (!time) { toast('请先选择提醒时间'); return; }
+  if (!text && !linkEl.value.trim() && !imgEl.files.length) { toast('请至少填写提醒内容、链接或图片'); return; }
+  ensureAudio(); // 借用户手势解锁音频，后续到点才能响铃
+  const finish = (image) => {
+    state.memos.push({ id: newMemoId(), time, text, link: (linkEl.value || '').trim(), image: image || '', fired: false });
+    timeEl.value = ''; textEl.value = ''; linkEl.value = ''; imgEl.value = '';
+    saveState(); schedulePush(); renderMemos();
+    toast('已添加提醒：' + time.replace('T', ' '));
+  };
+  if (imgEl.files && imgEl.files[0]) {
+    const fr = new FileReader();
+    fr.onload = () => finish(fr.result);
+    fr.readAsDataURL(imgEl.files[0]);
+  } else {
+    finish('');
+  }
+}
+function renderMemos() {
+  const list = document.getElementById('memo-list');
+  if (!list) return;
+  const memos = (state.memos || []).slice().sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  if (!memos.length) { list.innerHTML = '<div class="empty">暂无定时提醒</div>'; return; }
+  const now = new Date();
+  list.innerHTML = memos.map(m => {
+    const due = new Date(m.time) <= now;
+    const status = m.fired ? '<span style="color:var(--primary);font-size:12px">已提醒</span>'
+      : (due ? '<span style="color:#e74c3c;font-size:12px">已到点</span>' : '<span style="color:var(--text-secondary);font-size:12px">待提醒</span>');
+    const link = m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:12px;word-break:break-all">🔗 打开链接</a>` : '';
+    const img = m.image ? `<img src="${m.image}" style="max-width:60px;max-height:60px;border-radius:8px;margin-top:4px">` : '';
+    return `<div class="task-item" style="align-items:flex-start;margin-bottom:8px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${escapeHtml(m.text || '（无文字）')} <span style="color:var(--text-secondary);font-weight:400">· ${m.time.replace('T', ' ')}</span></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:2px">${status}${link}</div>
+        ${img}
+      </div>
+      <div class="task-del" onclick="deleteMemo('${m.id}')">删除</div>
+    </div>`;
+  }).join('');
+}
+function deleteMemo(id) {
+  if (!confirm('删除这条定时提醒？')) return;
+  state.memos = (state.memos || []).filter(m => m.id !== id);
+  saveState(); schedulePush(); renderMemos();
+}
+function checkMemos() {
+  if (!state.memos || !state.memos.length) return;
+  const now = new Date();
+  let changed = false;
+  state.memos.forEach(m => {
+    if (!m.fired && m.time && new Date(m.time) <= now) {
+      m.fired = true; changed = true;
+      showMemoAlarm(m);
+    }
+  });
+  if (changed) { saveState(); schedulePush(); if (state.view === 'life') renderMemos(); }
+}
+// ---- 响铃（Web Audio，离线可用） ----
+let _audioCtx = null, _alarmInt = null;
+function ensureAudio() {
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  } catch (e) { _audioCtx = null; }
+  return _audioCtx;
+}
+function playAlarm() {
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  stopAlarm();
+  let flip = 0;
+  const beep = () => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = flip ? 880 : 660;
+    flip = !flip;
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.5);
+  };
+  beep();
+  _alarmInt = setInterval(beep, 600);
+}
+function stopAlarm() { if (_alarmInt) { clearInterval(_alarmInt); _alarmInt = null; } }
+function showMemoAlarm(m) {
+  const modal = document.getElementById('memo-alarm-modal');
+  const text = document.getElementById('memo-alarm-text');
+  const img = document.getElementById('memo-alarm-image');
+  const link = document.getElementById('memo-alarm-link');
+  if (text) text.textContent = m.text || '⏰ 时间到了！';
+  if (img) img.innerHTML = m.image ? `<img src="${m.image}" style="max-width:200px;border-radius:10px">` : '';
+  if (link) link.innerHTML = m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-block;margin-top:6px">🔗 打开链接</a>` : '';
+  if (modal) modal.classList.add('show');
+  playAlarm();
+  // 若已授权，额外发一条系统通知
+  try {
+    if (window.Notification && Notification.permission === 'granted') {
+      new Notification('⏰ 时间到了', { body: (m.text || '') + (m.time ? (' · ' + m.time.replace('T', ' ')) : ''), icon: m.image || '' });
+    }
+  } catch (e) {}
+}
+function dismissMemoAlarm() {
+  const modal = document.getElementById('memo-alarm-modal');
+  if (modal) modal.classList.remove('show');
+  stopAlarm();
+}
 // ================= Navigation (双布局) =================
 const NAV_ITEMS = {
   daily:   { name: '每日计划', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>' },
@@ -2959,7 +3145,7 @@ function checkReminders() {
     pushNotif('📚 学习时间到', msg);
   }
 }
-function checkBedtimeNotif() { checkReminders(); }
+function checkBedtimeNotif() { checkReminders(); checkMemos(); }
 
 // ================= Dashboard =================
 function daysUntil(dateStr) {
@@ -3458,8 +3644,7 @@ function renderHabitChain() {
   </div>`;
 }
 function renderSleepGuard() {
-  const t = todayStr();
-  const rec = (state.habit.records || []).find(r => r.date === t);
+  const rec = findOpenSleep();
   const after = isAfterBedtime();
   const cd = bedtimeCountdown();
   const lateN = lateNightCount(30);
@@ -3483,27 +3668,26 @@ function renderInterestBank() {
   const rewards = state.hobbyRewards || [];
   const cards = rewards.map(r => {
     const can = bal >= r.minutes;
-    return `<div class="reward-card ${can ? '' : 'reward-disabled'}">
+    return `<div class="reward-card compact ${can ? '' : 'reward-disabled'}">
       <button class="reward-del" onclick="deleteReward('${r.id}')" title="删除">✕</button>
       <div class="reward-icon">${r.icon || '🎁'}</div>
       <div class="reward-name">${escapeHtml(r.name)}</div>
-      <div class="reward-min">${r.minutes} 分钟</div>
-      <button class="btn btn-small ${can ? 'btn-primary' : 'btn-secondary'}" ${can ? '' : 'disabled style="opacity:.5;cursor:not-allowed"'} onclick="startRewardTimer('${r.id}')">${can ? '▶ 开始' : '余额不足'}</button>
+      <div class="reward-min">${r.minutes}分</div>
+      <button class="btn btn-block btn-small ${can ? 'btn-primary' : 'btn-secondary'}" ${can ? '' : 'disabled style="opacity:.5;cursor:not-allowed"'} onclick="startRewardTimer('${r.id}')">${can ? '▶ 开始' : '不足'}</button>
     </div>`;
   }).join('');
-  return `<div class="card">
-    <div class="card-title">🎸 兴趣银行 · 兑换奖励</div>
-    <div class="card-sub">完成任务攒「兴趣时间」，点奖励开始计时，时间到自动提醒 💡</div>
-    <div style="display:flex;gap:12px;align-items:center;margin:6px 0">
-      <div style="font-size:26px;font-weight:800;color:var(--primary)">${bal} 分钟</div>
-      <div style="font-size:12px;color:var(--text-secondary)">每完成1个番茄 +${rate}分<br>每周达标再 +${rewardH}小时</div>
+  return `<div class="reward-bank-compact">
+    <div class="rb-head">
+      <div class="rb-title">🎸 兴趣银行 · 兑换</div>
+      <div class="rb-bal">${bal} 分钟</div>
     </div>
-    <div class="reward-grid">${cards || '<div class="card-sub">还没有奖励，下面添加一个吧</div>'}</div>
-    <div class="reward-add">
-      <input class="input" id="new-reward-name" placeholder="奖励名(如 看剧)" style="flex:2;min-width:90px">
-      <input class="input" id="new-reward-icon" placeholder="图标" style="max-width:56px" value="🎁">
-      <input class="input" id="new-reward-min" type="number" min="1" placeholder="分钟" style="max-width:74px" value="30">
-      <button class="btn btn-primary btn-small" onclick="addReward()">添加</button>
+    <div class="card-sub" style="margin:2px 0 8px">每番茄 +${rate}分 · 每周达标再 +${rewardH}小时</div>
+    <div class="reward-grid compact">${cards || '<div class="card-sub">还没有奖励，下面添加</div>'}</div>
+    <div class="reward-add compact">
+      <input class="input" id="new-reward-name" placeholder="奖励名" style="flex:2;min-width:70px">
+      <input class="input" id="new-reward-icon" placeholder="图标" style="max-width:44px" value="🎁">
+      <input class="input" id="new-reward-min" type="number" min="1" placeholder="分" style="max-width:52px" value="30">
+      <button class="btn btn-primary btn-small" onclick="addReward()">加</button>
     </div>
   </div>`;
 }
@@ -4416,8 +4600,14 @@ function init() {
   initSync();
   setInterval(checkBedtimeNotif, 60000);
   checkBedtimeNotif();
+  setInterval(checkMemos, 15000);
+  checkMemos();
+  // 首次用户手势解锁音频，便于到点响铃（iOS 要求用户交互后才能播放声音）
+  const unlockAudio = () => { ensureAudio(); document.removeEventListener('pointerdown', unlockAudio); document.removeEventListener('touchstart', unlockAudio); };
+  document.addEventListener('pointerdown', unlockAudio);
+  document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=3').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=4').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
     });
@@ -4450,5 +4640,17 @@ init();
     <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="closeRewardDone()">好的</button>
   </div>
 </div>
+<!-- 定时提醒响铃弹窗 -->
+<div class="modal-overlay" id="memo-alarm-modal" onclick="if(event.target===this) dismissMemoAlarm()">
+  <div class="modal" style="text-align:center;border:2px solid #e74c3c">
+    <div style="font-size:46px;animation:ringshake .8s ease-in-out infinite">⏰</div>
+    <div class="modal-title" style="font-size:20px;margin:6px 0 10px;color:#e74c3c">时间到了！</div>
+    <div id="memo-alarm-text" style="font-size:16px;font-weight:600;line-height:1.6"></div>
+    <div id="memo-alarm-image" style="margin:10px 0"></div>
+    <div id="memo-alarm-link" style="margin-bottom:10px"></div>
+    <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="dismissMemoAlarm()">我知道了</button>
+  </div>
+</div>
+<style>@keyframes ringshake{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}</style>
 </body>
 </html>
