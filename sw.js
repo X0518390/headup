@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lamb-workbench-v11';
+const CACHE_NAME = 'lamb-workbench-v12';
 // 相对路径:兼容 GitHub Pages 子路径(/headup/)与 Vercel 根路径部署
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
@@ -10,9 +10,16 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
-      .then(() => self.clients.matchAll())
-      .then(clients => clients.forEach(c => c.postMessage({ type: 'NEW_VERSION' })))
+      // 清掉所有旧缓存（包括当前 v12），下次导航完全由网络决定
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then(clients => {
+        clients.forEach(c => {
+          try { c.postMessage({ type: 'NEW_VERSION' }); } catch (e) {}
+          // 强制刷新所有打开的页面：让新 SW + no-store 立刻生效，避免用户需要手动刷第二次
+          try { c.reload(); } catch (e) {}
+        });
+      })
   );
   self.clients.claim();
 });
@@ -75,18 +82,10 @@ self.addEventListener('fetch', event => {
     }
   } catch (e) {}
 
-  // Network-first: 导航请求绕过 HTTP 缓存, 确保拿到最新 HTML (解决 iOS 缓存旧版问题);
-  // 其它静态资源正常 network-first, 离线时回退缓存。
+  // Navigation: 完全 no-store，绕过所有缓存层（浏览器 HTTP 缓存 + CDN 边缘缓存），
+  // 直接从网络拉取最新 HTML。这是解决 iOS Safari 等移动浏览器激进缓存导致看不到新版本的关键。
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request, { cache: 'no-cache' })
-        .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-          return res;
-        })
-        .catch(() => caches.match(event.request))
-    );
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
   event.respondWith(
