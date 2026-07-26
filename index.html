@@ -2879,8 +2879,9 @@ function renderMemos() {
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:2px">${status}${link}</div>
         ${img}
       </div>
-      <div style="display:flex;gap:14px;align-items:center">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <span class="task-del" style="color:var(--primary)" onclick="editMemo('${m.id}')">✏️ 修改</span>
+        <span class="task-del" onclick="downloadMemoIcs('${m.id}')">📅 日历</span>
         <span class="task-del" onclick="deleteMemo('${m.id}')">删除</span>
       </div>
     </div>`;
@@ -2925,6 +2926,46 @@ function pasteMemoLink() {
     if (hint && hint !== fallback) document.getElementById('memo-text').value = hint;
     toast('已识别链接' + (hint && hint !== fallback ? '并填入内容' : ''));
   }).catch(() => toast('无法读取剪贴板，请允许权限后重试'));
+}
+function icsEscape(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+}
+function downloadMemoIcs(id) {
+  const m = (state.memos || []).find(x => x.id === id);
+  if (!m) return;
+  if (!m.time) { toast('这条提醒没有设置时间，无法加入日历'); return; }
+  const pad = n => String(n).padStart(2, '0');
+  // 开始：本地浮动时间（按用户本地时区）
+  const dtStart = (m.time || '').replace(/[-:]/g, '').replace('T', 'T');
+  // 结束：开始 + 30 分钟
+  let dtEnd = dtStart;
+  const d = new Date(m.time);
+  if (!isNaN(d)) { const e = new Date(d.getTime() + 30 * 60000); dtEnd = '' + e.getFullYear() + pad(e.getMonth() + 1) + pad(e.getDate()) + 'T' + pad(e.getHours()) + pad(e.getMinutes()) + pad(e.getSeconds()); }
+  const summary = icsEscape(m.text || '⏰ Head up 提醒');
+  const descParts = [];
+  if (m.text) descParts.push(m.text);
+  if (m.link) descParts.push('链接: ' + m.link);
+  const desc = icsEscape(descParts.join('\n'));
+  const now = new Date();
+  const dtstamp = '' + now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) + 'T' + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + 'Z';
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Head up//Memo//CN', 'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    'UID:memo-' + m.id + '@headup', 'DTSTAMP:' + dtstamp,
+    'DTSTART:' + dtStart, 'DTEND:' + dtEnd,
+    'SUMMARY:' + summary, 'DESCRIPTION:' + desc,
+    m.link ? ('URL:' + m.link.replace(/[\r\n]/g, '')) : '',
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + summary, 'TRIGGER:-PT0M', 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'
+  ].filter(Boolean);
+  const ics = lines.join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'headup-提醒-' + (m.text || 'memo') + '.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('已生成日历文件，下载后点开即可加入手机日历');
 }
 function checkMemos() {
   if (!state.memos || !state.memos.length) return;
