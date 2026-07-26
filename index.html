@@ -858,12 +858,12 @@
 <script>
 // ================= Data & State =================
 const defaultTasks = [
-  { id: 't1', text: '背单词 新词40 + 复习旧词', done: false },
-  { id: 't2', text: '张宇基础30讲 看课 1.5-2 节', done: false },
-  { id: 't3', text: '高数课后题 / 张宇1000题', done: false },
-  { id: 't4', text: '王道数据结构 看课 1.5-2 节', done: false },
-  { id: 't5', text: '数据结构选择 + 算法手写', done: false },
-  { id: 't6', text: '睡前单词复习 15 分钟', done: false }
+  { id: 't1', text: '背单词 新40+复习', done: false },
+  { id: 't2', text: '张宇30讲 看课2节', done: false },
+  { id: 't3', text: '高数/张宇1000题', done: false },
+  { id: 't4', text: '王道 看课2节', done: false },
+  { id: 't5', text: '算法手写1道', done: false },
+  { id: 't6', text: '睡前单词 15分', done: false }
 ];
 
 const defaultHobbies = [
@@ -1162,15 +1162,11 @@ function ensureState() {
   else ['math','cs408','english','politics'].forEach(s => { if (!state.recite[s]) state.recite[s] = []; });
   if (state.hobbyBank === undefined) state.hobbyBank = 0;
   if (state.bankCreditedWeek === undefined) state.bankCreditedWeek = 0;
+  if (state.hobbyBonus === undefined) state.hobbyBonus = 0;   // 周目标达成奖励（分钟），累计进银行
+  if (state.hobbySpent === undefined) state.hobbySpent = 0;   // 已花费在爱好上的分钟（打卡/奖励倒计时）
+  // 银行始终由「番茄数×5 + 周奖励 − 已花费」推导，保证手动移动记录后余额仍与番茄数一致
+  recomputeBank();
   if (!state.hobbyCheckins) state.hobbyCheckins = [];
-  // 把爱好时间银行对齐到「已完成番茄钟数 × 每番茄分钟数」，清掉历史累计造成的偏差
-  if (!state._hobbyBankFixed) {
-    const _pc = (state.lifeRecords || []).filter(r => r.src === 'pomo').length;
-    state.hobbyBank = _pc * BANK_PER_POMO;
-    state.bankCreditedWeek = currentWeekNum(); // 本周奖励视为已计入，避免一加载又被 +奖励小时
-    state._hobbyBankFixed = true;
-    saveState();
-  }
   if (!state.habits) state.habits = defaultHabits();
   if (!state.habitChecks) state.habitChecks = {};
   if (!state.restDays) state.restDays = {};
@@ -1387,29 +1383,28 @@ function generateDailyTasks() {
   const st = getPlanStatus();
   const dow = new Date().getDay(); // 0=周日 .. 6=周六
   const isWeekend = (dow === 0 || dow === 6);
-  const wkTag = '（推进第' + st.weekNum + '周）';
-  // 昨天各任务链接映射（按归一化文本匹配，忽略“推进第N周”后缀），新的一天默认沿用
+  // 昨天各任务链接映射（按归一化文本匹配），新的一天默认沿用
   const yLinkMap = {};
   histTasks(dateStr(new Date(Date.now() - 86400000))).forEach(h => { if (h.link) yLinkMap[normTaskText(h.text)] = h.link; });
   // 按规划预设每条任务的时长（分钟），区分周中 / 周末；target>0 才会显示时间条
   const mk = (text, target) => ({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text, done: false, target: target || 0, logged: 0, link: yLinkMap[normTaskText(text)] || '' });
   if (isWeekend) {
     const arr = [
-      mk('张宇看课 3 节（上午）' + wkTag, 180),
-      mk('王道看课 3 节（下午）' + wkTag, 180),
-      mk('英语：阅读2篇 + 单词复习', 60),
+      mk('张宇 看课3节', 180),
+      mk('王道 看课3节', 180),
+      mk('英语 阅读2+单词', 60),
     ];
-    if (st.weekNum >= 9) arr.push(mk('政治：肖1000题 1 章' + wkTag, 60));
-    arr.push(mk('错题复盘 2 小时', 120));
+    if (st.weekNum >= 9) arr.push(mk('政治 肖1000 1章', 60));
+    arr.push(mk('错题复盘 2h', 120));
     return arr;
   }
   return [
-    mk('背单词 新词40 + 复习旧词', 30),
-    mk('张宇基础30讲 看课 1.5–2 节' + wkTag, 90),
-    mk('高数课后题 / 张宇1000题', 60),
-    mk('王道数据结构 看课 1.5–2 节' + wkTag, 90),
-    mk('数据结构选择 + 算法手写 1 道', 45),
-    mk('睡前单词复习 15 分钟', 15),
+    mk('背单词 新40+复习', 30),
+    mk('张宇30讲 看课2节', 90),
+    mk('高数/张宇1000题', 60),
+    mk('王道 看课2节', 90),
+    mk('算法手写1道', 45),
+    mk('睡前单词 15分', 15),
   ];
 }
 function generateTodayPlan() {
@@ -2680,6 +2675,19 @@ function startPomodoro() {
   pomoTimer = setInterval(tickPomo, 1000);
   renderPomoDisplay();
 }
+// 补做昨日欠账：用番茄钟倒计时。记录到「昨天」(makeupDate)，不计入今天任何数据
+function startMakeupPomodoro(date) {
+  if (pomoTimer) { toast('已有番茄钟进行中，先结束它'); return; }
+  const d = (typeof date === 'string') ? { date } : latestDailyDeficit();
+  if (!d || !d.date) { toast('没有待补做的昨日欠账 🎉'); return; }
+  const ds = d.date;
+  state.pomo = { name: '补做', subject: '', totalSec: 25 * 60, endTime: Date.now() + 25 * 60000, taskId: null, makeup: true, makeupDate: ds };
+  saveState();
+  pomoTimer = setInterval(tickPomo, 1000);
+  renderPomoDisplay();
+  setView('life');
+  toast('开始补做番茄钟（计入 ' + ds + ' 的学习时长）');
+}
 function tickPomo() {
   if (!state.pomo) return;
   const remain = Math.max(0, Math.round((state.pomo.endTime - Date.now())/1000));
@@ -2694,12 +2702,15 @@ function finishPomodoro(early) {
   const realSec = early ? (totalSec - remainSec) : totalSec;
   const realMin = Math.max(1, Math.round(realSec/60));
   const taskId = state.pomo.taskId;
-  state.lifeRecords.push({ id: Date.now().toString(), date: todayStr(), name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin), src: 'pomo' });
-  if (state.pomo.subject) {
-    state.studyRecords.push({ id: Date.now().toString(), date: todayStr(), subject: state.pomo.subject, minutes: realMin, late: isAfterBedtime(), taskId: taskId || null, src: 'pomo' });
+  const isMakeup = !!state.pomo.makeup;
+  // 补做：记录到「昨天」(makeupDate)，不计入今天任何数据；普通番茄钟记到今天
+  const recDate = isMakeup ? (state.pomo.makeupDate || todayStr()) : todayStr();
+  state.lifeRecords.push({ id: Date.now().toString(), date: recDate, name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin), src: 'pomo' });
+  if (state.pomo.subject || isMakeup) {
+    state.studyRecords.push({ id: Date.now().toString(), date: recDate, subject: state.pomo.subject || '', minutes: realMin, late: isMakeup ? false : isAfterBedtime(), taskId: taskId || null, src: 'pomo', makeup: isMakeup });
   }
-  // 累计到绑定任务的「时间条」，达到目标自动打勾
-  if (taskId) {
+  // 累计到绑定任务的「时间条」，达到目标自动打勾（补做不累计今日任务）
+  if (taskId && !isMakeup) {
     const t = state.tasks.find(x => x.id === taskId);
     if (t) {
       t.logged = (t.logged || 0) + realMin;
@@ -2713,14 +2724,21 @@ function finishPomodoro(early) {
       }
     }
   }
+  // 补做：扣减昨日欠账
+  if (isMakeup && state.deficits && state.deficits.daily && state.deficits.daily[recDate] !== undefined) {
+    state.deficits.daily[recDate] = Math.max(0, (state.deficits.daily[recDate] || 0) - realMin);
+    if ((state.deficits.daily[recDate] || 0) === 0) delete state.deficits.daily[recDate];
+  }
   state.pomo = null;
-  // 兴趣银行：每完成一个番茄钟即时攒「兴趣时间」（分钟）
-  state.hobbyBank = (state.hobbyBank || 0) + BANK_PER_POMO;
-  // 任务状态变化后同步到「完成日历」快照，并刷新每日视图（若正在看）
+  // 兴趣银行：每完成一个番茄钟即时攒「兴趣时间」（分钟）—— 重算保证与番茄数一致
+  recomputeBank();
+  // 任务状态变化后同步到「完成日历」快照，并刷新相关视图
   updateDailySnapshot();
   saveState(); schedulePush();
   if (state.view === 'daily') renderDaily();
   renderLife();
+  if (state.view === 'dashboard' || isMakeup) renderDashboard();
+  toast(isMakeup ? `补做完成 ${fmtMin(realMin)}，已计入 ${recDate} 的学习时长 💪` : `番茄钟完成！兴趣银行 +${BANK_PER_POMO} 分钟（共 ${state.hobbyBank} 分）`);
 }
 function earlyStop() { if (state.pomo) finishPomodoro(true); }
 function updatePomoRing(remain, total) {
@@ -2817,7 +2835,7 @@ function renderLifeCalendarDetail() {
   html += `<div class="form-row" style="margin-top:8px"><input class="input" id="life-event-name" placeholder="添加当天事项名称"></div><button class="btn btn-small btn-primary" onclick="addLifeEvent()">添加事项</button>`;
   if (manRecs.length) {
     html += `<div style="margin-top:12px;font-weight:600;font-size:13px">📝 当天事项</div>`;
-    html += manRecs.map(r => `<div class="word-row"><div class="word-en">${escapeHtml(r.name)}</div><div class="word-cn">${r.durationText || '手动添加'}</div><span class="task-link-open" style="font-size:12px;cursor:pointer" onclick="moveToPomo('${r.id}')">🍅 转番茄钟</span><div class="word-del" onclick="deleteLifeRecord('${r.id}')">×</div></div>`).join('');
+    html += manRecs.map(r => `<div class="word-row"><div class="word-en">${escapeHtml(r.name)}</div><div class="word-cn">${r.durationText || '手动添加'}</div><div class="word-del" onclick="deleteLifeRecord('${r.id}')">×</div></div>`).join('');
   }
   if (!manRecs.length) {
     html += pomoN
@@ -2841,21 +2859,6 @@ function addLifeEvent() {
   saveState(); schedulePush(); renderLifeCalendar();
 }
 function deleteLifeRecord(id) { deleteStudySession(id); }
-// 把生活日历里的一条手动事项转为「番茄钟」记录（归入上方番茄钟汇总，日历详情不再显示）
-function moveToPomo(id) {
-  const r = (state.lifeRecords || []).find(x => x.id === id);
-  if (!r) return;
-  r.src = 'pomo';
-  // 解析时长（名字里可能含 "25分钟"/"25分"/"25m"/"25min"），保证番茄钟汇总的分钟数正确更新
-  if (!r.durationMin || r.durationMin <= 0) {
-    const m = (r.name || '').match(/(\d+)\s*(分|分钟|m|min)/i);
-    if (m) { r.durationMin = parseInt(m[1], 10); r.durationText = r.durationMin + '分'; }
-  }
-  if (!r.durationText) r.durationText = fmtMin(r.durationMin || 0);
-  saveState(); schedulePush();
-  renderLifeCalendar(); renderPomodoroSummary();
-  toast('已转入番茄钟：' + (r.name || ''));
-}
 // 删除一条番茄钟/学习会话：一条番茄钟会同时写入 生活日历(lifeRecords) 与 学习记录(studyRecords)（共用同一 id）。
 // 这里一次性清理两边，并回退绑定任务的进度条、回退爱好时间银行的分钟数，再刷新所有相关视图，保证数据一致。
 function deleteStudySession(id) {
@@ -2877,9 +2880,9 @@ function deleteStudySession(id) {
       }
     }
   }
-  // 回退爱好时间银行（仅番茄钟产生的记录会攒 8 分钟/个；手动添加不回退）
+  // 回退爱好时间银行（仅番茄钟产生的记录会攒 5 分钟/个；手动添加不回退）
   if (lifeRec && lifeRec.src === 'pomo') {
-    state.hobbyBank = Math.max(0, (state.hobbyBank || 0) - BANK_PER_POMO);
+    recomputeBank();
   }
   saveState(); schedulePush();
   if (state.view === 'life') renderLife();
@@ -3069,18 +3072,28 @@ function downloadMemoIcs(id) {
   const ics = lines.join('\r\n');
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
   const file = new File([ics], 'headup-提醒-' + (m.text || 'memo') + '.ics', { type: 'text/calendar' });
-  // 优先用系统分享面板（iOS/Android 可在面板里选「添加到日历」），避免直接导航触发"无法下载"
+  // 1) 优先用系统分享面板：iOS/Android 可在面板里选「添加到日历」
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     navigator.share({ files: [file], title: 'Head up 提醒', text: (m.text || '提醒') })
-      .then(() => {}).catch(() => {});
+      .catch(() => fallbackIcs(blob));
     return;
   }
+  fallbackIcs(blob);
+}
+// .ics 导入兜底：直接打开触发系统「添加到日历」；弹窗被拦截则下载让用户手动导入
+function fallbackIcs(blob) {
   const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if (w) {
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    toast('已打开日历文件，请在系统弹窗中选择「添加到日历」');
+    return;
+  }
   const a = document.createElement('a');
-  a.href = url; a.download = 'headup-提醒-' + (m.text || 'memo') + '.ics';
+  a.href = url; a.download = 'headup-reminder.ics';
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-  toast('已生成 .ics 日历文件，点开后加入手机日历（网页无法直接写入系统日历）');
+  setTimeout(() => URL.revokeObjectURL(url), 6000);
+  toast('已生成 .ics 文件（网页无法直接写系统日历），请在文件 App 里用「日历」打开导入');
 }
 function checkMemos() {
   if (!state.memos || !state.memos.length) return;
@@ -3385,9 +3398,9 @@ function daysUntil(dateStr) {
   return Math.round((d - today) / 86400000);
 }
 function studySum(filterFn) { return (state.studyRecords || []).filter(filterFn).reduce((a,b) => a + (b.minutes || 0), 0); }
-function todayStudyMin() { return studySum(r => r.date === todayStr()); }
-function todayEffectiveMin() { return studySum(r => r.date === todayStr() && !r.late); }
-function todayLateMin() { return studySum(r => r.date === todayStr() && r.late); }
+function todayStudyMin() { return studySum(r => r.date === todayStr() && !r.makeup); }
+function todayEffectiveMin() { return studySum(r => r.date === todayStr() && !r.late && !r.makeup); }
+function todayLateMin() { return studySum(r => r.date === todayStr() && r.late && !r.makeup); }
 function isWeekendDay(d) { const day = (d || new Date()).getDay(); return day === 0 || day === 6; }
 function dayGoal(dateStrOrDate) {
   const s = state.settings || {};
@@ -3556,11 +3569,11 @@ function doMakeup(type, key, sub, minutes) {
   saveState(); schedulePush(); closeMakeup(); renderCurrentView();
   toast('已补做 ' + fmtMin(minutes) + '，欠账减少 💪');
 }
-// FAB 一键补做：优先昨日欠账，其次最近一周欠账
+// FAB 一键补做：昨日欠账走番茄钟倒计时，周欠账仍用弹窗（需选科目）
 function fabMakeup() {
   document.getElementById('fab-sheet').classList.remove('show');
   const d = latestDailyDeficit();
-  if (d) { openMakeup('daily', d.date, ''); return; }
+  if (d) { startMakeupPomodoro(d.date); return; }
   const w = outstandingWeeklyDeficits()[0];
   if (w) { openMakeup('weekly', w.week, w.items[0].sub); return; }
   toast('暂时没有欠账，继续保持 🎉');
@@ -3640,7 +3653,8 @@ function creditHobbyBank() {
   const wk = currentWeekNum();
   if (state.bankCreditedWeek === wk) return false;
   const mins = (state.settings.rewardHours || 3) * 60;
-  state.hobbyBank = (state.hobbyBank || 0) + mins;
+  state.hobbyBonus = (state.hobbyBonus || 0) + mins;
+  recomputeBank();
   state.bankCreditedWeek = wk;
   saveState(); schedulePush();
   return true;
@@ -3664,7 +3678,8 @@ function hobbyStreak() {
 function checkInHobby(hobbyId, minutes) {
   minutes = Math.min(state.hobbyBank || 0, minutes || 30);
   if (minutes <= 0) { toast('时间银行余额不足，先去完成今日目标赚奖励吧 💪'); return false; }
-  state.hobbyBank -= minutes;
+  state.hobbySpent = (state.hobbySpent || 0) + minutes;
+  recomputeBank();
   const t = todayStr();
   if (!state.hobbyCheckins.includes(t)) state.hobbyCheckins.push(t);
   saveState(); schedulePush(); renderHobbies();
@@ -3711,6 +3726,11 @@ function recommendNow() {
 }
 // ================= 习惯链 / 作息熔断 / 兴趣银行 / 合法休息日 =================
 const BANK_PER_POMO = 5; // 每完成一个番茄钟即时攒入「兴趣银行」的分钟数
+// 兴趣银行 = 已完成番茄数×5 + 周奖励 − 已花费；每次加载与每次变动都重算，保证与番茄数一致
+function recomputeBank() {
+  const pc = (state.lifeRecords || []).filter(r => r.src === 'pomo').length;
+  state.hobbyBank = pc * BANK_PER_POMO + (state.hobbyBonus || 0) - (state.hobbySpent || 0);
+}
 function defaultHabits() {
   return [
     { id: 'h_nolate', name: '不熬夜', kind: 'sleep', icon: '🌙' },
@@ -3935,7 +3955,8 @@ function startRewardTimer(id) {
   if (state.activeReward) { toast('已有奖励倒计时进行中，先结束它'); return; }
   const bal = state.hobbyBank || 0;
   if (bal < r.minutes) { toast('兴趣时间不足 ' + r.minutes + ' 分钟，先去完成番茄赚一些吧 💪'); return; }
-  state.hobbyBank -= r.minutes;
+  state.hobbySpent = (state.hobbySpent || 0) + r.minutes;
+  recomputeBank();
   state.activeReward = { id: r.id, name: r.name, icon: r.icon, minutes: r.minutes, endTime: Date.now() + r.minutes * 60000, totalSec: r.minutes * 60 };
   saveState(); schedulePush();
   renderInterestBankMount();
@@ -4096,15 +4117,19 @@ function renderDashboard() {
         <div style="font-size:12px;color:var(--text-secondary)">连续早睡达标<br>近30天熬夜 <b style="color:${lateN?'#e74c3c':'inherit'}">${lateN}</b> 次</div>
       </div>
     </div>`;
-  // 昨日目标欠账（可补做清零）
+  // 补做昨日欠账：用番茄钟倒计时，记录到昨天、不计入今天数据
   const dDef = latestDailyDeficit();
   let dDefHtml = '';
   if (dDef) {
+    const madeUp = studySum(r => r.makeup && r.date === dDef.date);
+    const totalShort = madeUp + dDef.short;
+    const pct = totalShort > 0 ? Math.min(100, Math.round(madeUp / totalShort * 100)) : 0;
     dDefHtml = `<div class="card card-warn yest-warn" style="border-left:4px solid #e74c3c">
-      <div class="card-title">⚠️ 昨日学习目标未完成</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-        <span class="card-sub">${dDef.date} 还差 <b class="status-bad">${fmtMin(dDef.short)}</b>（目标 ${fmtMin(dayGoal(dDef.date))}）</span>
-        <button class="btn btn-small btn-primary" onclick="openMakeup('daily','${dDef.date}','')">补做</button>
+      <div class="card-title">🔧 补做昨日</div>
+      <div class="card-sub" style="margin-top:2px">${dDef.date} 还差 <b class="status-bad">${fmtMin(dDef.short)}</b>（目标 ${fmtMin(dayGoal(dDef.date))}）${madeUp ? ` · 已补 ${fmtMin(madeUp)}` : ''}</div>
+      <div class="bar" style="margin:8px 0 6px"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn btn-small btn-primary" onclick="startMakeupPomodoro('${dDef.date}')">▶ 计时补做</button>
       </div>
     </div>`;
   }
@@ -4260,32 +4285,33 @@ function openPlanFile(id) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = name + (f.url && String(f.url).toLowerCase().endsWith('.pdf') ? '.pdf' : '');
+    a.download = name + (/\.pdf$/i.test(name) || (f.url && /\.pdf$/i.test(f.url)) ? '.pdf' : '');
     document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    toast('已下载：' + name);
   };
-  const tryUrl = (src) => fetch(src).then(r => {
-    if (!r.ok) throw new Error('http');
-    return r.blob();
-  }).then(blob => {
-    openBlob(blob);
-    if (f.fileKey) idbPut(f.fileKey, blob).catch(() => {});
-    toast('已打开：' + name);
-  });
+  // 链接类文件（含 plan/ 同域 PDF）：直接新标签页打开，移动端/桌面最稳，不会被当成"无反应/白屏"
+  if (f.url) {
+    const w = window.open(f.url, '_blank');
+    if (!w) {
+      // 弹窗被拦截时回退：本地 blob 优先，否则重新抓取链接后下载
+      if (f.fileKey) {
+        idbGet(f.fileKey).then(b => { if (b) openBlob(b); else fetch(f.url).then(r => r.blob()).then(openBlob).catch(() => toast('无法打开：' + name)); }).catch(() => toast('无法打开：' + name));
+      } else {
+        fetch(f.url).then(r => r.blob()).then(openBlob).catch(() => toast('无法打开该链接（可能已失效或跨域）：' + name));
+      }
+    }
+    return;
+  }
+  // 纯本地上传文件：用 IndexedDB blob 下载
   if (f.fileKey) {
     idbGet(f.fileKey).then(blob => {
       if (blob) { openBlob(blob); return; }
-      if (f.url) return tryUrl(f.url);
       toast('本地文件未找到，请重新添加：' + name);
-    }).catch(() => {
-      if (f.url) tryUrl(f.url).catch(() => toast('无法打开：' + name));
-      else toast('无法打开：' + name);
-    });
-  } else if (f.url) {
-    tryUrl(f.url).catch(() => toast('无法打开该链接（可能已失效或跨域）：' + name));
-  } else {
-    toast('该资料没有可打开的文件');
+    }).catch(() => toast('无法打开：' + name));
+    return;
   }
+  toast('该资料没有可打开的文件');
 }
 let pfType = 'link';
 function setPfType(t) {
