@@ -1394,52 +1394,6 @@ function renderDaily() {
   renderDashboard();
   renderCalendar();
 }
-// 今日学习记录：可查看、可改分钟、可删除
-function renderTodayStudy() {
-  const el = document.getElementById('today-study');
-  if (!el) return;
-  const recs = (state.studyRecords || []).filter(r => r.date === todayStr())
-    .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
-  const total = recs.reduce((a, r) => a + (r.minutes || 0), 0);
-  if (!recs.length) {
-    el.innerHTML = `<div class="card-sub" style="color:var(--text-secondary)">今天还没记录学习，点「🍅 番茄钟」或生活页快捷按钮记一笔。</div>`;
-    return;
-  }
-  const rows = recs.map(r => {
-    const sub = subjectConfig[r.subject] ? subjectConfig[r.subject].name : r.subject;
-    const badge = r.makeup ? '<span class="category-tag active" style="font-size:11px">补做</span>' : (r.late ? '<span class="category-tag" style="font-size:11px;opacity:.7">熬夜</span>' : '');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-      <span style="flex:1">${sub} ${badge}</span>
-      <input class="task-target" type="number" min="1" value="${r.minutes}" onchange="editStudyRecordMin('${r.id}', this.value)" title="修改分钟" style="width:60px">
-      <span>分</span>
-      <span style="cursor:pointer;color:#e74c3c;font-size:16px" onclick="deleteStudyRecord('${r.id}')" title="删除">×</span>
-    </div>`;
-  }).join('');
-  el.innerHTML = `<div class="card" style="border-left:4px solid var(--primary)">
-    <div class="card-title">📝 今日学习记录 <span style="font-weight:400;font-size:12px;color:var(--text-secondary)">（共 ${fmtMin(total)}）</span></div>
-    <div class="card-sub">录错了可改分钟或删除；删除会影响时长统计与欠账。</div>
-    ${rows}
-  </div>`;
-}
-function deleteStudyRecord(id) { deleteStudySession(id); }
-function editStudyRecordMin(id, val) {
-  const r = state.studyRecords.find(x => x.id === id);
-  if (!r) return;
-  const m = Math.max(1, Math.round(parseInt(val) || 0));
-  // 同步调整对应每日任务的「时间条」累计
-  if (r.taskId) {
-    const t = state.tasks.find(x => x.id === r.taskId);
-    if (t) {
-      t.logged = Math.max(0, (t.logged || 0) + (m - (r.minutes || 0)));
-      if (t.target && t.target > 0) {
-        if (t.logged >= t.target && !t.done) { t.done = true; if (/张宇/.test(t.text)) bumpCourse('zhangyu', 2); else if (/王道/.test(t.text)) bumpCourse('wangdao', 2); }
-        else if (t.logged < t.target && t.done) { t.done = false; if (/张宇/.test(t.text)) bumpCourse('zhangyu', -2); else if (/王道/.test(t.text)) bumpCourse('wangdao', -2); }
-      }
-    }
-  }
-  r.minutes = m;
-  saveState(); schedulePush(); renderTodayStudy(); renderDaily(); renderDashboard(); renderExamCardsLight();
-}
 // 仅刷新考研页里依赖学习记录的卡片（预算/欠账/薄弱/连胜），避免整页重渲闪烁
 function renderExamCardsLight() {
   if (state.view === 'exam' && !state.exam.subject) renderExamOverview();
