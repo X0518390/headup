@@ -14,6 +14,7 @@
       color-scheme: light dark;
       --primary: #f3832c;
       --primary-dark: #e06d15;
+      --primary-deep: #cf6a14; /* 更深一档的橙，用于需更高对比度的橙底白字 */
       --primary-light: #fdeede;
       --bg: #f5f5f7;
       --card: #ffffff;
@@ -70,6 +71,9 @@
     .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(243,131,44,.28); }
     .btn-primary:hover { background: var(--primary-dark); }
     .btn-primary:active { opacity: .9; transform: scale(.97); }
+    /* 更深橙底：专用于需更高对比度的橙底白字按钮（如「补做」） */
+    .btn-primary.btn-deep { background: var(--primary-deep); box-shadow: 0 2px 8px rgba(207,106,20,.3); }
+    .btn-primary.btn-deep:hover { background: #b85c12; }
     .btn-secondary { background: var(--bg); color: var(--text); }
     .btn-secondary:hover { background: var(--border); }
     .btn-danger { background: #fee2e2; color: #991b1b; }
@@ -3851,7 +3855,7 @@ function renderDashboard() {
       </div>
     </div>`;
   const recCard = `
-    <div class="card card-rec" style="border-left:4px solid #f3832c">
+    <div class="card card-rec" style="border-left:4px solid var(--primary-deep)">
       <div class="card-title">🧭 现在该做</div>
       <div style="font-size:15px;font-weight:600;line-height:1.6;margin:2px 0 10px">${recommendNow()}</div>
       <div style="font-size:12px;color:var(--text-secondary)">🌙 距就寝还有 <b>${bedtimeCountdown()}</b>${isAfterBedtime()?'（已超时，该睡了）':''}</div>
@@ -3882,7 +3886,7 @@ function renderDashboard() {
       <div class="card-title">⚠️ 昨日学习目标未完成</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         <span class="card-sub">${dDef.date} 还差 <b class="status-bad">${fmtMin(dDef.short)}</b>（目标 ${fmtMin(dayGoal(dDef.date))}）</span>
-        <button class="btn btn-small btn-primary" onclick="openMakeup('daily','${dDef.date}','')">补做</button>
+        <button class="btn btn-small btn-primary btn-deep" onclick="openMakeup('daily','${dDef.date}','')">补做</button>
       </div>
     </div>`;
   }
