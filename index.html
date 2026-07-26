@@ -3040,9 +3040,10 @@ function downloadMemoIcs(id) {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if (isIOS) {
     // iOS Safari 不支持 <a download>，直接打开 .ics 让系统弹"添加到日历"
+    // iOS 系统限制：网页无法零点击自动写入日历，必须用户点一下"添加"——这是平台安全策略
     window.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 8000);
-    toast('已生成日历文件，按"好"后系统会弹出"添加到日历" 📅');
+    toast('已生成提醒日历文件 📅 iOS 点"好"后会自动弹出"添加到日历"，点一下即可加入');
     return;
   }
   const a = document.createElement('a');
@@ -4994,7 +4995,7 @@ function init() {
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=8').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=9').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
       if (e.data && e.data.type === 'STOP_ALARM') { stopAlarm(); dismissMemoAlarm(); }
