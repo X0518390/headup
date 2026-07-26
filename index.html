@@ -14,7 +14,7 @@
       color-scheme: light dark;
       --primary: #f3832c;
       --primary-dark: #e06d15;
-      --primary-deep: #cf6a14; /* 更深一档的橙，用于需更高对比度的橙底白字 */
+      --primary-deep: #b85c12; /* 达 WCAG AA 4.5 的深橙，用于橙底白字 */
       --primary-light: #fdeede;
       --bg: #f5f5f7;
       --card: #ffffff;
@@ -72,8 +72,8 @@
     .btn-primary:hover { background: var(--primary-dark); }
     .btn-primary:active { opacity: .9; transform: scale(.97); }
     /* 更深橙底：专用于需更高对比度的橙底白字按钮（如「补做」） */
-    .btn-primary.btn-deep { background: var(--primary-deep); box-shadow: 0 2px 8px rgba(207,106,20,.3); }
-    .btn-primary.btn-deep:hover { background: #b85c12; }
+    .btn-primary.btn-deep { background: var(--primary-deep); box-shadow: 0 2px 8px rgba(184,92,18,.32); }
+    .btn-primary.btn-deep:hover { background: #a8500e; }
     .btn-secondary { background: var(--bg); color: var(--text); }
     .btn-secondary:hover { background: var(--border); }
     .btn-danger { background: #fee2e2; color: #991b1b; }
