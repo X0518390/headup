@@ -3100,10 +3100,23 @@ function downloadMemoIcs(id) {
   const file = new File([ics], 'headup-reminder.ics', { type: 'text/calendar' });
   const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (isMobile) {
-    // 移动端：用 data: URI 直接唤起系统「添加到日历」，避开分享/下载权限报错（blob: 导航在 iOS 会“无法下载文件”，navigator.share 文件在 iOS 会“没有下载权限”）
-    const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-    window.location.href = dataUri;
-    toast('已唤起系统日历，请选择「添加到日历」');
+    // 移动端：通过 Service Worker 返回真实的 .ics 文件 URL，让系统识别为日历导入并弹出「添加到日历」
+    // data: URI 和 navigator.share 文件在 iOS 上都无法真正唤起日历（会被拦截或报"没有下载权限"）
+    const params = new URLSearchParams();
+    params.set('uid', 'memo-' + m.id + '@headup');
+    params.set('start', dtStart);
+    params.set('end', dtEnd);
+    params.set('summary', m.text || '⏰ Head up 提醒');
+    params.set('desc', [m.text, m.link ? ('链接: ' + m.link) : ''].filter(Boolean).join('\n'));
+    if (m.link) params.set('url', m.link.replace(/[\r\n]/g, ''));
+    const icsUrl = 'reminder.ics?' + params.toString();
+    const opened = window.open(icsUrl, '_blank');
+    if (opened) {
+      toast('已唤起系统日历，请选择「添加到日历」');
+    } else {
+      // 弹窗被拦截时回退到 blob 下载/打开
+      fallbackIcs(blob);
+    }
     return;
   }
   // 桌面端：优先系统分享面板（可在面板里选「添加到日历」）
@@ -5133,7 +5146,7 @@ function init() {
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=9').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=10').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
       if (e.data && e.data.type === 'STOP_ALARM') { stopAlarm(); dismissMemoAlarm(); }
