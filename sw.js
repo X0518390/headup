@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lamb-workbench-v5';
+const CACHE_NAME = 'lamb-workbench-v6';
 // 相对路径:兼容 GitHub Pages 子路径(/headup/)与 Vercel 根路径部署
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
@@ -42,4 +42,20 @@ self.addEventListener('fetch', event => {
       })
       .catch(() => caches.match(event.request))
   );
+});
+
+// 提醒通知：点击或关闭时，通知页面停止响铃（后台标签页也能关）
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) { c.postMessage({ type: 'STOP_ALARM' }); try { await c.focus(); } catch (e) {} }
+    if (!all.length) { try { await self.clients.openWindow(new URL('./', self.location).href); } catch (e) {} }
+  })());
+});
+self.addEventListener('notificationclose', event => {
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) c.postMessage({ type: 'STOP_ALARM' });
+  })());
 });

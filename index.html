@@ -2830,6 +2830,10 @@ function addMemo() {
   const time = (timeEl.value || '').trim();
   const text = (textEl.value || '').trim();
   if (!time) { toast('请先选择提醒时间'); return; }
+  // 首次添加提醒时顺便请求通知权限，否则系统通知（带内容）不会弹出
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(p => { if (p === 'granted') { state.settings.notif = true; saveState(); } });
+  }
   const hasImg = !!(imgEl.files && imgEl.files[0]);
   const keepImg = _editingMemoId && _editingMemoImage;
   if (!text && !linkEl.value.trim() && !hasImg && !keepImg) { toast('请至少填写提醒内容、链接或图片'); return; }
@@ -2935,7 +2939,7 @@ function checkMemos() {
   if (changed) { saveState(); schedulePush(); if (state.view === 'life') renderMemos(); }
 }
 // ---- 响铃（Web Audio，离线可用） ----
-let _audioCtx = null, _alarmInt = null;
+let _audioCtx = null, _alarmInt = null, _alarmAutoStop = null;
 function ensureAudio() {
   try {
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -2975,14 +2979,24 @@ function showMemoAlarm(m) {
   if (link) link.innerHTML = m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-block;margin-top:6px">🔗 打开链接</a>` : '';
   if (modal) modal.classList.add('show');
   playAlarm();
-  // 若已授权，额外发一条系统通知
-  try {
-    if (window.Notification && Notification.permission === 'granted') {
-      new Notification('⏰ 时间到了', { body: (m.text || '') + (m.time ? (' · ' + m.time.replace('T', ' ')) : ''), icon: m.image || '' });
+  // 自动停止，避免一直响个不停
+  if (_alarmAutoStop) clearTimeout(_alarmAutoStop);
+  _alarmAutoStop = setTimeout(() => { stopAlarm(); }, 25000);
+  // 系统通知：走 Service Worker，后台标签页也可见；带内容 + 「停止铃声」按钮
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const title = '⏰ 提醒' + (m.text ? '：' + m.text : '时间到了');
+    const body = (m.time ? (m.time.replace('T', ' ') + ' · ') : '') + '点此查看或关闭铃声';
+    const opts = { body, tag: 'memo-' + m.id, requireInteraction: true, icon: m.image || '', data: { memoId: m.id } };
+    try { if ('actions' in Notification.prototype) opts.actions = [{ action: 'stop', title: '🔕 停止铃声' }]; } catch (e) {}
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts)).catch(() => { try { new Notification(title, { body }); } catch (e2) {} });
+    } else {
+      try { new Notification(title, { body }); } catch (e) {}
     }
-  } catch (e) {}
+  }
 }
 function dismissMemoAlarm() {
+  if (_alarmAutoStop) { clearTimeout(_alarmAutoStop); _alarmAutoStop = null; }
   const modal = document.getElementById('memo-alarm-modal');
   if (modal) modal.classList.remove('show');
   stopAlarm();
@@ -4658,9 +4672,10 @@ function init() {
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=5').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=6').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
+      if (e.data && e.data.type === 'STOP_ALARM') { stopAlarm(); dismissMemoAlarm(); }
     });
   }
 }
@@ -4699,7 +4714,10 @@ init();
     <div id="memo-alarm-text" style="font-size:16px;font-weight:600;line-height:1.6"></div>
     <div id="memo-alarm-image" style="margin:10px 0"></div>
     <div id="memo-alarm-link" style="margin-bottom:10px"></div>
-    <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="dismissMemoAlarm()">我知道了</button>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" style="flex:1" onclick="dismissMemoAlarm()">我知道了</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="dismissMemoAlarm()">🔕 停止铃声</button>
+    </div>
   </div>
 </div>
 <style>@keyframes ringshake{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}</style>
