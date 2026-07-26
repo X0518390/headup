@@ -358,18 +358,16 @@
     .reward-name { font-size: 14px; font-weight: 600; margin: 4px 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .reward-min { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
     .reward-add { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; align-items: flex-end; }
-    /* 紧凑版兴趣银行（放在「兴趣爱好」标题下方，占更小面积） */
-    .reward-bank-compact { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 14px; }
-    .reward-bank-compact .rb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .reward-bank-compact .rb-title { font-size: 15px; font-weight: 700; }
-    .reward-bank-compact .rb-bal { font-size: 15px; font-weight: 800; color: var(--primary); white-space: nowrap; }
-    .reward-grid.compact { grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 8px; margin-top: 0; }
-    .reward-card.compact { padding: 8px 6px 6px; border-radius: 10px; }
+    /* 奖励网格 + 添加行（作为「爱好时间银行」卡片的一部分） */
+    .reward-grid.compact { grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 8px; margin-top: 8px; align-items: stretch; }
+    .reward-card.compact { padding: 8px 6px 6px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; }
     .reward-card.compact .reward-icon { font-size: 22px; }
     .reward-card.compact .reward-name { font-size: 12px; margin: 2px 0 1px; }
     .reward-card.compact .reward-min { font-size: 11px; margin-bottom: 5px; }
-    .reward-card.compact .btn { font-size: 11px; padding: 4px 0; }
-    .reward-add.compact { margin-top: 10px; }
+    .reward-card.compact .btn { font-size: 11px; padding: 4px 0; margin-top: auto; width: 100%; }
+    .reward-add.compact { margin-top: 10px; align-items: stretch; }
+    .reward-add.compact .input { height: 40px; box-sizing: border-box; }
+    .reward-add.compact .reward-add-btn { height: 40px; padding: 0 18px; font-size: 15px; font-weight: 700; }
     #reward-timer-float {
       position: fixed; right: 14px; bottom: 86px; z-index: 500; width: 150px;
       background: linear-gradient(135deg, #f3832c, #ff9a4d); border-radius: 18px; padding: 10px 8px;
@@ -462,7 +460,6 @@
         <div id="hobbies-list">
           <div id="hobby-lock" class="hidden"></div>
           <div class="section-title">🎨 兴趣爱好</div>
-          <div id="interest-bank-mount"></div>
           <div class="hobby-grid" id="hobby-grid"></div>
           <div class="card" style="margin-top:16px">
             <div class="card-title">➕ 添加收藏</div>
@@ -2054,13 +2051,16 @@ function renderHobbies() {
     if (!bankCard) { bankCard = document.createElement('div'); bankCard.id = 'hobby-bank-card'; bankCard.className = 'card'; listEl.insertBefore(bankCard, grid); }
     const earned = weeklyRewardEarned();
     const remainDays = Math.max(0, (state.settings.rewardDays || 5) - weekGoalMetDays());
+    const rate = BANK_PER_POMO;
     bankCard.innerHTML = `
       <div class="card-title">🏦 爱好时间银行</div>
       <div style="display:flex;gap:12px;align-items:center">
         <div style="font-size:26px;font-weight:800;color:var(--primary)">${state.hobbyBank} 分钟</div>
         <div style="font-size:12px;color:var(--text-secondary)">本周达标可玩 <b>${state.settings.rewardHours}</b> 小时<br>练习连胜 <b style="color:${hobbyStreak()>0?'var(--primary)':'inherit'}">${hobbyStreak()}</b> 天</div>
       </div>
-      <div class="card-sub" style="margin-top:6px">${earned ? '本周目标已达标，奖励已存入银行 ✅' : `本周还差 <b>${remainDays}</b> 天达标即可存入奖励`}</div>`;
+      <div class="card-sub" style="margin-top:6px">${earned ? '本周目标已达标，奖励已存入银行 ✅' : `本周还差 <b>${remainDays}</b> 天达标即可存入奖励`}</div>
+      <div class="card-sub" style="margin:8px 0 2px">每完成 1 个番茄 +${rate} 分（点击奖励即可开始计时兑换）</div>
+      <div id="reward-body-mount"></div>`;
     grid.innerHTML = '';
     state.hobbies.forEach(h => {
       const el = document.createElement('div');
@@ -2128,8 +2128,8 @@ function renderHobbies() {
   renderInterestBankMount();
 }
 function renderInterestBankMount() {
-  const el = document.getElementById('interest-bank-mount');
-  if (el) el.innerHTML = renderInterestBank();
+  const el = document.getElementById('reward-body-mount');
+  if (el) el.innerHTML = renderRewardBody();
 }
 function openHobby(id) { state.hobbyOpen = id; state.hobbyFilter = 'all'; saveState(); schedulePush(); renderHobbies(); }
 // ================= 兴趣转盘 =================
@@ -3665,10 +3665,9 @@ function renderSleepGuard() {
   </div>`;
 }
 let rewardTimerInt = null;
-function renderInterestBank() {
+// 仅渲染「可兑换奖励」的网格 + 添加行（作为「爱好时间银行」卡片的一部分）
+function renderRewardBody() {
   const bal = state.hobbyBank || 0;
-  const rate = BANK_PER_POMO;
-  const rewardH = state.settings.rewardHours || 3;
   const rewards = state.hobbyRewards || [];
   const cards = rewards.map(r => {
     const can = bal >= r.minutes;
@@ -3680,20 +3679,13 @@ function renderInterestBank() {
       <button class="btn btn-block btn-small ${can ? 'btn-primary' : 'btn-secondary'}" ${can ? '' : 'disabled style="opacity:.5;cursor:not-allowed"'} onclick="startRewardTimer('${r.id}')">${can ? '▶ 开始' : '不足'}</button>
     </div>`;
   }).join('');
-  return `<div class="reward-bank-compact">
-    <div class="rb-head">
-      <div class="rb-title">🎸 兴趣银行 · 兑换</div>
-      <div class="rb-bal">${bal} 分钟</div>
-    </div>
-    <div class="card-sub" style="margin:2px 0 8px">每番茄 +${rate}分 · 每周达标再 +${rewardH}小时</div>
-    <div class="reward-grid compact">${cards || '<div class="card-sub">还没有奖励，下面添加</div>'}</div>
+  return `<div class="reward-grid compact">${cards || '<div class="card-sub">还没有奖励，下面添加</div>'}</div>
     <div class="reward-add compact">
       <input class="input" id="new-reward-name" placeholder="奖励名" style="flex:2;min-width:70px">
       <input class="input" id="new-reward-icon" placeholder="图标" style="max-width:44px" value="🎁">
       <input class="input" id="new-reward-min" type="number" min="1" placeholder="分" style="max-width:52px" value="30">
-      <button class="btn btn-primary btn-small" onclick="addReward()">加</button>
-    </div>
-  </div>`;
+      <button class="btn btn-primary reward-add-btn" onclick="addReward()">添加</button>
+    </div>`;
 }
 function addReward() {
   const name = (document.getElementById('new-reward-name').value || '').trim();
@@ -3913,7 +3905,6 @@ function renderDashboard() {
   }
   const habitChainCard = renderHabitChain();
   const sleepGuardCard = renderSleepGuard();
-  const interestBankCard = renderInterestBank();
   el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
@@ -4611,7 +4602,7 @@ function init() {
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=4').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=5').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
     });
