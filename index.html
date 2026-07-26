@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-deploy="20260726-0720-phase2">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#f3832c">
+  <meta name="theme-color" content="#65735a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Head up</title>
@@ -12,21 +12,62 @@
   <style>
     :root {
       color-scheme: light dark;
-      --primary: #f3832c;
-      --primary-dark: #e06d15;
-      --primary-light: #fdeede;
-      --bg: #f5f5f7;
-      --card: #ffffff;
-      --text: #1c1c1e;
-      --text-secondary: #6c6c70;
-      --border: #e8e8ed;
-      --rec-a: #fff7ef; --rec-b: #ffffff;
-      --warn-a: #fff5f5; --warn-b: #ffffff;
-      --hero-a: #f3832c; --hero-b: #ff9a4d;
-      --radius: 14px;
-      --radius-lg: 18px;
-      --shadow: 0 2px 12px rgba(0,0,0,0.06);
-      --shadow-sm: 0 1px 4px rgba(0,0,0,0.05);
+      /* 莫兰迪色族 */
+      --sage: #8a9a7b;
+      --sage-dark: #65735a;
+      --sage-light: #e7ece1;
+      --sage-soft: #d8e0ce;
+      --rose: #c1a3a0;
+      --rose-dark: #9c7c78;
+      --rose-light: #f1e9e7;
+      --rose-soft: #eaddda;
+      --beige: #d8c9b4;
+      --beige-dark: #b0a08a;
+      --beige-light: #f3ece1;
+      --beige-soft: #e8ded0;
+      --bg-cream: #f4efe6;
+      --danger: #b9857f;
+      --danger-light: #f3e6e4;
+      --status-good: #7d9b6a;
+      --status-warn: #c9a36a;
+      --status-bad: #b9857f;
+
+      /* 语义变量（默认绿系，daily/exam） */
+      --primary: var(--sage);
+      --primary-dark: var(--sage-dark);
+      --primary-light: var(--sage-light);
+      --bg: var(--bg-cream);
+      --card: #fbf8f2;
+      --text: #2b2926;
+      --text-secondary: #7a7468;
+      --border: #e7e0d6;
+      --rec-a: var(--beige-light); --rec-b: var(--card);
+      --warn-a: var(--rose-light); --warn-b: var(--card);
+      --hero-a: var(--sage); --hero-b: var(--sage-soft);
+      --radius: 16px;
+      --radius-lg: 20px;
+      --radius-pill: 999px;
+      --shadow: 0 2px 10px rgba(60,50,40,.06);
+      --shadow-sm: 0 1px 4px rgba(60,50,40,.05);
+    }
+    /* 上下文强调色：随 Tab 切换绿/米/粉，必须在 body.hc 之前以保证高对比优先 */
+    body[data-accent="exam"], body[data-accent="daily"] {
+      --primary: var(--sage); --primary-dark: var(--sage-dark); --primary-light: var(--sage-light);
+      --hero-a: var(--sage); --hero-b: var(--sage-soft);
+      --rec-a: var(--beige-light); --rec-b: var(--card);
+      --warn-a: var(--rose-light); --warn-b: var(--card);
+    }
+    body[data-accent="life"] {
+      --primary: var(--beige); --primary-dark: var(--beige-dark); --primary-light: var(--beige-light);
+      --hero-a: var(--beige); --hero-b: var(--beige-soft);
+      --rec-a: var(--beige-light); --rec-b: var(--card);
+      --warn-a: var(--rose-light); --warn-b: var(--card);
+    }
+    body[data-accent="habits"], body[data-accent="hobbies"] {
+      --primary: var(--rose); --primary-dark: var(--rose-dark); --primary-light: var(--rose-light);
+      --hero-a: var(--rose); --hero-b: var(--rose-soft);
+      --rec-a: var(--rose-light); --rec-b: var(--card);
+      --warn-a: var(--rose-soft); --warn-b: var(--card);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
@@ -35,7 +76,7 @@
 
     .sidebar { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 12px; overflow-y: auto; flex-shrink: 0; }
     .brand { font-size: 20px; font-weight: 700; padding: 12px 8px 20px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-    .brand-logo { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #f3832c; color: #fff; border-radius: 8px; font-weight: 800; font-size: 17px; box-shadow: 0 2px 6px rgba(243,131,44,.4); }
+    .brand-logo { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--primary); color: #fff; border-radius: 8px; font-weight: 800; font-size: 17px; box-shadow: 0 2px 6px rgba(90,100,70,.25); }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-radius: 10px; cursor: pointer; margin-bottom: 4px; color: var(--text-secondary); transition: .2s; font-weight: 500; }
     .nav-item:hover, .nav-item.active { background: var(--primary-light); color: var(--primary); }
     .nav-icon { width: 24px; text-align: center; }
@@ -62,34 +103,34 @@
       .menu-btn { display: block; }
     }
 
-    .card { background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+    .card { background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); }
     .card-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; letter-spacing: .2px; }
     .card-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
 
-    .btn { border: none; border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; transition: transform .08s, background .2s, box-shadow .2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(243,131,44,.28); }
+    .btn { border: none; border-radius: var(--radius-pill); padding: 10px 18px; font-weight: 600; cursor: pointer; transition: transform .08s, background .2s, box-shadow .2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(90,100,70,.18); }
     .btn-primary:hover { background: var(--primary-dark); }
     .btn-primary:active { opacity: .9; transform: scale(.97); }
-    .btn-secondary { background: var(--bg); color: var(--text); }
-    .btn-secondary:hover { background: var(--border); }
-    .btn-danger { background: #fee2e2; color: #991b1b; }
-    .btn-small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+    .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); border-color: var(--border); }
+    .btn-danger { background: var(--danger-light); color: #5a3a36; }
+    .btn-small { padding: 6px 12px; font-size: 13px; border-radius: var(--radius-pill); }
     .btn-block { width: 100%; }
 
     .task-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg); border-radius: 12px; margin-bottom: 10px; flex-wrap: wrap; }
     .task-time { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
-    .task-pomo { background: rgba(243,131,44,.14); color: #7a3e12; border: none; border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .task-pomo { background: rgba(138,154,123,.14); color: #4a5741; border: none; border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 600; }
     .task-pomo:active { transform: scale(.95); }
     .task-target { width: 54px; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
-    .task-progress { flex: 1; min-width: 90px; height: 8px; background: #ececf0; border-radius: 6px; overflow: hidden; }
+    .task-progress { flex: 1; min-width: 90px; height: 8px; background: var(--border); border-radius: 6px; overflow: hidden; }
     .task-progress > i { display: block; height: 100%; background: var(--primary); border-radius: 6px; }
-    .task-progress.done > i { background: #2e9e5b; }
+    .task-progress.done > i { background: var(--status-good); }
     .task-item.done { background: var(--primary-light); }
     .task-link { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 6px; font-size: 12px; flex-wrap: wrap; }
     .task-link-open { color: var(--primary); text-decoration: none; font-weight: 600; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .task-link-open:hover { text-decoration: underline; }
     .task-link-act { cursor: pointer; color: var(--text-secondary); font-size: 13px; padding: 0 2px; }
-    .task-link-act:hover { color: #e74c3c; }
+    .task-link-act:hover { color: var(--danger); }
     .task-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
     .task-check.checked { background: var(--primary); color: white; }
     .task-text { flex: 1; cursor: pointer; border-radius: 6px; padding: 2px 4px; transition: background .15s; }
@@ -99,7 +140,7 @@
     .task-del { color: #999; font-size: 18px; cursor: pointer; padding: 4px; }
 
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
-    .stat-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
+    .stat-card { background: var(--card); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
     .stat-num { font-size: 28px; font-weight: 700; color: var(--primary); letter-spacing: .5px; }
     .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
@@ -110,7 +151,7 @@
     .input:focus, .textarea:focus { border-color: var(--primary); }
 
     .subject-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
-    .subject-card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); cursor: pointer; text-align: center; transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
+    .subject-card { background: var(--card); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow); cursor: pointer; text-align: center; transition: transform .15s, box-shadow .15s; border: 1px solid var(--border); }
     .subject-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
     .subject-card:active { transform: translateY(0); }
     .subject-icon { font-size: 32px; margin-bottom: 8px; }
@@ -120,11 +161,11 @@
     .tab { padding: 8px 14px; border-radius: 20px; background: var(--bg); color: var(--text-secondary); font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
     .tab.active { background: var(--primary); color: white; }
 
-    .item-card { background: var(--bg); border-radius: 12px; padding: 12px; margin-bottom: 12px; position: relative; }
+    .item-card { background: var(--bg); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; position: relative; border: 1px solid var(--border); }
     .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
     .item-title { font-weight: 600; flex: 1; }
     .item-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; white-space: pre-wrap; }
-    .resource-card { background: var(--card); border-left: 3px solid var(--primary); box-shadow: var(--shadow); }
+    .resource-card { background: var(--card); border-left: 3px solid var(--primary); box-shadow: var(--shadow); border: 1px solid var(--border); }
     .resource-open-btn { display: inline-flex; align-items: center; gap: 4px; margin: 2px 0 8px; text-decoration: none; background: var(--primary); color: #fff; font-weight: 600; }
     /* 兴趣分类下条目：紧凑网格（手机2列，宽屏更多列），带媒体时整行 */
     .hobby-items-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -138,18 +179,18 @@
     .wheel-wrap { position: relative; width: 280px; max-width: 100%; margin: 4px auto 0; }
     .wheel-wrap canvas { display: block; width: 280px; height: 280px; max-width: 100%; border-radius: 50%; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
     .wheel-pointer { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 20px solid var(--primary); z-index: 2; filter: drop-shadow(0 2px 2px rgba(0,0,0,.2)); }
-    .item-img { width: 100%; border-radius: 10px; cursor: pointer; margin-bottom: 8px; background: #ddd; min-height: 120px; object-fit: cover; }
+    .item-img { width: 100%; border-radius: 10px; cursor: pointer; margin-bottom: 8px; background: var(--border); min-height: 120px; object-fit: cover; }
     .item-actions { display: flex; gap: 8px; justify-content: flex-end; }
     .add-subitem { margin-top: 8px; }
 
     .hobby-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .hobby-card { background: var(--card); border-radius: 12px; padding: 14px 8px; text-align: center; box-shadow: var(--shadow); cursor: pointer; }
+    .hobby-card { background: var(--card); border-radius: var(--radius-lg); padding: 16px 8px; text-align: center; box-shadow: var(--shadow); cursor: pointer; border: 1px solid var(--border); }
     .hobby-icon { font-size: 26px; margin-bottom: 6px; }
     .hobby-name { font-size: 13px; font-weight: 600; }
     .category-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
     .category-tag { padding: 6px 12px; border-radius: 16px; background: var(--bg); font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
     .category-tag.active { background: var(--primary); color: white; }
-    .cat-del { color: #c0392b; font-weight: 700; cursor: pointer; }
+    .cat-del { color: var(--danger); font-weight: 700; cursor: pointer; }
     .seg-group { display: inline-flex; gap: 6px; }
     .seg { border: 1px solid var(--border); background: var(--card); color: var(--text-secondary); border-radius: 8px; padding: 5px 11px; font-size: 13px; cursor: pointer; line-height: 1; }
     .seg.seg-on { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -162,7 +203,7 @@
 
     .habit-actions { display: flex; gap: 12px; margin: 16px 0; }
     .habit-actions .btn { flex: 1; padding: 18px; font-size: 16px; }
-    .weather-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+    .weather-card { background: linear-gradient(135deg, #8a9a7b 0%, #9ba8b0 100%); color: white; border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
     .weather-main { font-size: 32px; font-weight: 700; }
     .weather-tips { font-size: 14px; margin-top: 8px; opacity: .95; }
     .history-list { max-height: 320px; overflow-y: auto; }
@@ -217,45 +258,50 @@
     /* Sync */
     .sync-box { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: var(--bg); border-radius: 10px; cursor: pointer; font-size: 13px; }
     .sync-dot { width: 10px; height: 10px; border-radius: 50%; background: #bbb; }
-    .sync-dot.ok { background: #2ecc71; }
-    .sync-dot.sync { background: #f39c12; }
-    .sync-dot.err { background: #e74c3c; }
+    .sync-dot.ok { background: var(--status-good); }
+    .sync-dot.sync { background: var(--status-warn); }
+    .sync-dot.err { background: var(--status-bad); }
     .sync-dot.off { background: #95a5a6; }
     #sync-status-text { font-size: 12px; color: var(--text-secondary); }
 
     /* Dark theme */
     [data-theme="dark"] {
-      --bg: #1c1c1e; --card: #2c2c2e; --text: #ffffff; --text-secondary: #a0a0a5;
-      --border: #3a3a3c; --primary-light: #3d2f22; --shadow: 0 2px 12px rgba(0,0,0,.4);
-      --rec-a: #2c2c2e; --rec-b: #1c1c1e;
-      --warn-a: #4a2520; --warn-b: #2c2c2e;
-      --hero-a: #a85510; --hero-b: #c2691e;
+      --bg: #23211d; --card: #2e2b26; --text: #f3efe6; --text-secondary: #a8a096;
+      --border: #3c3833; --shadow: 0 2px 12px rgba(0,0,0,.4);
+      --sage: #9fb088; --sage-dark: #7d8a6a; --sage-light: #2f3a2c; --sage-soft: #3a4534;
+      --rose: #c9aaa5; --rose-dark: #a88884; --rose-light: #3a2f2e; --rose-soft: #453835;
+      --beige: #cbb89c; --beige-dark: #a89b82; --beige-light: #352f26; --beige-soft: #3f382d;
+      --bg-cream: #23211d; --danger: #c7948d; --danger-light: #3d2f2d;
+      --status-good: #8fb07e; --status-warn: #c9a36a; --status-bad: #c7948d;
+      --rec-a: #352f26; --rec-b: #2e2b26;
+      --warn-a: #3a2f2e; --warn-b: #2e2b26;
+      --hero-a: #7d8a6a; --hero-b: #9fb088;
     }
     [data-theme="dark"] .item-img { background: #444; }
     /* 用 CSS 变量驱动渐变背景（兼容浏览器强制深色模式） */
     .card-rec  { background: linear-gradient(135deg,var(--rec-a),var(--rec-b)); }
     .card-warn { background: linear-gradient(135deg,var(--warn-a),var(--warn-b)); }
     /* 现在该做 / 昨日未做 卡片底色：比默认高亮卡更明显的暖色，避免发白（仅作用这两张卡） */
-    .card-rec.now-rec { background: linear-gradient(135deg,#ffe0bf,#fff4e8); }
-    .card-warn.yest-warn { background: linear-gradient(135deg,#ffd2cb,#fff2ee); }
-    [data-theme="dark"] .card-rec.now-rec { background: linear-gradient(135deg,#3d2f22,#2c2c2e); }
-    [data-theme="dark"] .card-warn.yest-warn { background: linear-gradient(135deg,#4a2520,#2c2c2e); }
-    .card-hero { background: linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff; box-shadow:0 4px 16px rgba(243,131,44,.35); }
+    .card-rec.now-rec { background: linear-gradient(135deg,var(--beige-light),var(--card)); border-left: 4px solid var(--beige); }
+    .card-warn.yest-warn { background: linear-gradient(135deg,var(--rose-light),var(--card)); border-left: 4px solid var(--danger); }
+    [data-theme="dark"] .card-rec.now-rec { background: linear-gradient(135deg,var(--beige-light),var(--card)); border-left: 4px solid var(--beige); }
+    [data-theme="dark"] .card-warn.yest-warn { background: linear-gradient(135deg,var(--rose-light),var(--card)); border-left: 4px solid var(--danger); }
+    .card-hero { background: linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff; box-shadow:0 4px 16px rgba(90,100,70,.22); }
     [data-theme="dark"] .card-rec  { background: linear-gradient(135deg,var(--rec-a),var(--rec-b)); }
     [data-theme="dark"] .card-warn { background: linear-gradient(135deg,var(--warn-a),var(--warn-b)); }
-    [data-theme="dark"] .card-hero { background: linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff; box-shadow:0 4px 16px rgba(168,85,16,.4); }
+    [data-theme="dark"] .card-hero { background: linear-gradient(135deg,var(--hero-a),var(--hero-b)); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.35); }
     [data-theme="dark"] .alert-banner { background: #4a2520 !important; color: #ffb4a8 !important; }
-    [data-theme="dark"] .task-pomo { color: #ffc499; }
+    [data-theme="dark"] .task-pomo { color: #c9d4b8; }
 
     /* 新版本提示条（Service Worker 更新时弹出, 解决手机缓存旧版问题） */
     #update-banner {
       position: fixed; left: 50%; transform: translateX(-50%);
       bottom: 74px; z-index: 9999; display: none; align-items: center; gap: 10px;
-      background: #f3832c; color: #fff; padding: 10px 16px; border-radius: 999px;
+      background: var(--primary-dark); color: #fff; padding: 10px 16px; border-radius: 999px;
       font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.28); max-width: 90vw;
     }
     #update-banner button {
-      background: #fff; color: #f3832c; border: none; border-radius: 999px;
+      background: #fff; color: var(--primary-dark); border: none; border-radius: 999px;
       padding: 5px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
     }
 
@@ -263,9 +309,14 @@
        兜底用，避免主题脚本未加载完或检测异常时仍是浅底。 */
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
-        --bg:#1c1c1e; --card:#2c2c2e; --text:#ffffff; --text-secondary:#a0a0a5;
-        --border:#3a3a3c; --primary-light:#3d2f22; --shadow:0 2px 12px rgba(0,0,0,.4);
-        --rec-a:#3d2f22; --rec-b:#2c2c2e; --warn-a:#4a2520; --warn-b:#2c2c2e; --hero-a:#a85510; --hero-b:#c2691e;
+        --bg:#23211d; --card:#2e2b26; --text:#f3efe6; --text-secondary:#a8a096;
+        --border:#3c3833; --shadow:0 2px 12px rgba(0,0,0,.4);
+        --sage:#9fb088; --sage-dark:#7d8a6a; --sage-light:#2f3a2c; --sage-soft:#3a4534;
+        --rose:#c9aaa5; --rose-dark:#a88884; --rose-light:#3a2f2e; --rose-soft:#453835;
+        --beige:#cbb89c; --beige-dark:#a89b82; --beige-light:#352f26; --beige-soft:#3f382d;
+        --bg-cream:#23211d; --danger:#c7948d; --danger-light:#3d2f2d;
+        --status-good:#8fb07e; --status-warn:#c9a36a; --status-bad:#c7948d;
+        --rec-a:#352f26; --rec-b:#2e2b26; --warn-a:#3a2f2e; --warn-b:#2e2b26; --hero-a:#7d8a6a; --hero-b:#9fb088;
       }
     }
 
@@ -280,7 +331,7 @@
       --border: #ffffff; --primary: #ffd400; --primary-dark: #ffe600; --primary-light: #3a2f00;
       --shadow: none; --shadow-sm: none;
     }
-    body.hc .card, body.hc .stat-card, body.hc .subject-card, body.hc .dash-card,
+    body.hc .card, body.hc .stat-card, body.hc .subject-card, body.hc .dash-card, body.hc .dash-hero-greet,
     body.hc .hobby-card, body.hc .modal, body.hc .item-card, body.hc .resource-card,
     body.hc .dropzone, body.hc .sync-box, body.hc .install-banner, body.hc .bottom-tabs {
       border: 2px solid #ffffff !important;
@@ -310,14 +361,21 @@
     /* Dashboard */
     .dash-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
     @media (min-width: 600px) { .dash-grid { grid-template-columns: repeat(4, 1fr); } }
-    .dash-card { background: var(--card); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+    .dash-card { background: var(--card); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); }
     .dash-num { font-size: 26px; font-weight: 700; }
     .dash-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-    .status-good { color: #2ecc71; } .status-warn { color: #f39c12; } .status-bad { color: #e74c3c; }
+    .dash-hero-greet { background: linear-gradient(135deg, var(--beige-light), var(--card)); border-radius: var(--radius-lg); padding: 22px; margin-bottom: 16px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+    .dash-hero-greet .greet-date { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; letter-spacing: .5px; }
+    .dash-hero-greet .greet-main { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .dash-hero-greet .greet-poem { font-size: 15px; color: var(--text-secondary); font-style: italic; line-height: 1.6; }
+    .dash-big-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (min-width: 768px) { .dash-big-grid { grid-template-columns: 1fr 1fr; } }
+    .dash-big-grid > .card { margin-bottom: 0; }
+    .status-good { color: var(--status-good); } .status-warn { color: var(--status-warn); } .status-bad { color: var(--status-bad); }
 
     /* Alert banner */
-    .alert-banner { background: #fdecea; color: #c0392b; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
-    [data-theme="dark"] .alert-banner { background: #4a2520; color: #ff8a80; }
+    .alert-banner { background: var(--danger-light); color: #5a3a36; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+    [data-theme="dark"] .alert-banner { background: var(--danger-light); color: #eac4bf; }
 
     /* Progress bar */
     .bar { background: var(--bg); border-radius: 8px; height: 10px; overflow: hidden; margin-top: 6px; }
@@ -336,7 +394,7 @@
     .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
     .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
     .legend .lg-study::before { background: var(--primary); }
-    .legend .lg-sleep::before { background: #5b8c51; }
+    .legend .lg-sleep::before { background: var(--sage); }
 
     /* Settings modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
@@ -355,8 +413,8 @@
     .habit-name { font-size: 14px; font-weight: 600; }
     .habit-streak { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
     .habit-status { white-space: nowrap; }
-    .sleep-guard-bad { border-left: 4px solid #e74c3c; }
-    .sleep-guard-ok { border-left: 4px solid #5b8c51; }
+    .sleep-guard-bad { border-left: 4px solid var(--danger); }
+    .sleep-guard-ok { border-left: 4px solid var(--status-good); }
     .alert-banner.sleep-bad { background: #4a2520; color: #ff8a80; }
 
     /* 兴趣银行奖励网格 + 悬浮倒计时框 */
@@ -380,7 +438,7 @@
     .reward-add.compact .reward-add-btn { height: 40px; padding: 0 18px; font-size: 15px; font-weight: 700; }
     #reward-timer-float {
       position: fixed; right: 14px; bottom: 86px; z-index: 500; width: 150px;
-      background: linear-gradient(135deg, #f3832c, #ff9a4d); border-radius: 18px; padding: 10px 8px;
+      background: linear-gradient(135deg, var(--sage), var(--sage-soft)); border-radius: 18px; padding: 10px 8px;
       color: #fff; box-shadow: 0 8px 28px rgba(0,0,0,.35); text-align: center;
     }
     #reward-timer-float.hidden { display: none; }
@@ -1347,13 +1405,13 @@ function saveSyncConfig() {
   syncRoom = room;
   _syncSha = null;
   const st = document.getElementById('sync-config-status');
-  if (!tok || !room) { st.textContent = '请同时填写 Token 和房间号'; st.style.color = '#e74c3c'; return; }
+  if (!tok || !room) { st.textContent = '请同时填写 Token 和房间号'; st.style.color = 'var(--danger)'; return; }
   st.textContent = '已保存，正在连接…'; st.style.color = 'var(--text-secondary)';
   updateSyncUI('同步中…', 'sync');
   syncTick();
   if (!window.__syncTimer) window.__syncTimer = setInterval(syncTick, 15000);
   st.textContent = '已连接：手机与电脑填写相同的 Token 和房间号即可互相同步';
-  st.style.color = '#2ecc71';
+  st.style.color = 'var(--status-good)';
 }
 function initSync() {
   syncRoom = localStorage.getItem('syncRoom') || '';
@@ -1364,6 +1422,7 @@ function initSync() {
 // ================= Navigation =================
 function setView(view) {
   state.view = view;
+  document.body.dataset.accent = view;
   ['daily','exam','hobbies','life','habits'].forEach(v => {
     const el = document.getElementById('view-'+v);
     if (el) el.classList.toggle('hidden', v !== view);
@@ -1925,7 +1984,7 @@ function renderReviewPlanHtml() {
 // 背诵打卡（间隔重复）：数学 / 专业课(408) / 英语 / 政治
 const RECITE_INTERVALS = [1, 2, 4, 7, 15, 30];
 function mediaThumbHtml(item) {
-  if (item.pdf) return `<a href="${item.pdf}" target="_blank" title="点击打开PDF" style="display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;background:#eef;border:1px solid var(--border);border-radius:6px;color:#c0392b;font-size:18px;margin-right:8px;text-decoration:none;flex-shrink:0">📄</a>`;
+  if (item.pdf) return `<a href="${item.pdf}" target="_blank" title="点击打开PDF" style="display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--danger);font-size:18px;margin-right:8px;text-decoration:none;flex-shrink:0">📄</a>`;
   if (item.image) return `<img src="${item.image}" onclick="openLightbox('${item.image}')" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:8px;flex-shrink:0">`;
   return '';
 }
@@ -2181,7 +2240,7 @@ function openHobby(id) { state.hobbyOpen = id; state.hobbyFilter = 'all'; saveSt
 // ================= 兴趣转盘 =================
 let wheelRotation = 0;
 let wheelSpinning = false;
-const WHEEL_COLORS = ['#f3832c','#f7a35c','#5b8c51','#6aa0c9','#9b6dca','#e07a5f','#3d9970','#c97b9b','#d4a017','#5f9ea0','#e2954a','#7d8c5e'];
+const WHEEL_COLORS = ['#8a9a7b','#c1a3a0','#d8c9b4','#9ba8b0','#b0a08a','#a8b89a','#c9a36a','#a89b82','#7d9b6a','#b8a8a5','#9c7c78','#a5b095'];
 function drawWheel() {
   const canvas = document.getElementById('hobby-wheel');
   if (!canvas) return;
@@ -2225,8 +2284,8 @@ function drawWheel() {
   ctx.restore();
   // 中心圆
   ctx.beginPath(); ctx.arc(cx, cy, 20, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
-  ctx.lineWidth = 3; ctx.strokeStyle = '#f3832c'; ctx.stroke();
-  ctx.fillStyle = '#f3832c'; ctx.font = '700 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3; ctx.strokeStyle = getCssVar('--primary'); ctx.stroke();
+  ctx.fillStyle = getCssVar('--primary'); ctx.font = '700 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('GO', cx, cy);
 }
 function spinWheel() {
@@ -2991,7 +3050,7 @@ function renderMemos() {
   list.innerHTML = memos.map(m => {
     const due = new Date(m.time) <= now;
     const status = m.fired ? '<span style="color:var(--primary);font-size:12px">已提醒</span>'
-      : (due ? '<span style="color:#e74c3c;font-size:12px">已到点</span>' : '<span style="color:var(--text-secondary);font-size:12px">待提醒</span>');
+      : (due ? '<span style="color:var(--danger);font-size:12px">已到点</span>' : '<span style="color:var(--text-secondary);font-size:12px">待提醒</span>');
     const link = m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:12px;word-break:break-all">🔗 打开链接</a>` : '';
     const img = m.image ? `<img src="${m.image}" style="max-width:60px;max-height:60px;border-radius:8px;margin-top:4px">` : '';
     return `<div class="task-item" style="align-items:flex-start;margin-bottom:8px">
@@ -3959,7 +4018,7 @@ function renderSleepGuard() {
       <button class="btn btn-small ${rec && rec.sleep ? 'btn-secondary' : 'btn-primary'}" onclick="recordSleep()">🌙 ${rec && rec.sleep ? ('已记录 ' + rec.sleep) : '我睡了'}</button>
       <button class="btn btn-small btn-secondary" onclick="recordWake()">☀️ 我起了</button>
     </div>
-    <div style="font-size:12px;color:var(--text-secondary);margin-top:8px">近30天熬夜 <b style="color:${lateN ? '#e74c3c' : 'inherit'}">${lateN}</b> 次</div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-top:8px">近30天熬夜 <b style="color:${lateN ? 'var(--danger)' : 'inherit'}">${lateN}</b> 次</div>
     ${banner}
   </div>`;
 }
@@ -4147,7 +4206,7 @@ function renderDashboard() {
       </div>
     </div>`;
   const recCard = `
-    <div class="card card-rec now-rec" style="border-left:4px solid #f3832c">
+    <div class="card card-rec now-rec" style="border-left:4px solid var(--primary)">
       <div class="card-title">🧭 现在该做</div>
       <div style="font-size:15px;font-weight:600;line-height:1.6;margin:2px 0 10px">${recommendNow()}</div>
       <div style="font-size:12px;color:var(--text-secondary)">🌙 距就寝还有 <b>${bedtimeCountdown()}</b>${isAfterBedtime()?'（已超时，该睡了）':''}</div>
@@ -4167,7 +4226,7 @@ function renderDashboard() {
       <div class="card-title">😴 睡眠连胜</div>
       <div style="display:flex;gap:12px;align-items:center">
         <div style="font-size:28px;font-weight:800;color:${sleepStreakN>0?'var(--primary)':'#999'}">${sleepStreakN} 天</div>
-        <div style="font-size:12px;color:var(--text-secondary)">连续早睡达标<br>近30天熬夜 <b style="color:${lateN?'#e74c3c':'inherit'}">${lateN}</b> 次</div>
+        <div style="font-size:12px;color:var(--text-secondary)">连续早睡达标<br>近30天熬夜 <b style="color:${lateN?'var(--danger)':'inherit'}">${lateN}</b> 次</div>
       </div>
     </div>`;
   // 补做昨日欠账：用番茄钟倒计时，记录到昨天、不计入今天数据
@@ -4177,7 +4236,7 @@ function renderDashboard() {
     const madeUp = studySum(r => r.makeup && r.date === dDef.date);
     const totalShort = madeUp + dDef.short;
     const pct = totalShort > 0 ? Math.min(100, Math.round(madeUp / totalShort * 100)) : 0;
-    dDefHtml = `<div class="card card-warn yest-warn" style="border-left:4px solid #e74c3c">
+    dDefHtml = `<div class="card card-warn yest-warn" style="border-left:4px solid var(--danger)">
       <div class="card-title">🔧 补做昨日</div>
       <div class="card-sub" style="margin-top:2px">${dDef.date} 还差 <b class="status-bad">${fmtMin(dDef.short)}</b>（目标 ${fmtMin(dayGoal(dDef.date))}）${madeUp ? ` · 已补 ${fmtMin(madeUp)}` : ''}</div>
       <div class="bar" style="margin:8px 0 6px"><div class="bar-fill" style="width:${pct}%"></div></div>
@@ -4209,7 +4268,27 @@ function renderDashboard() {
   }
   const habitChainCard = renderHabitChain();
   const sleepGuardCard = renderSleepGuard();
-  el.innerHTML = alert + recCard + heroCard + goalHtml + dDefHtml + ringHtml + todoCard + sleepStreakCard + sleepInsightHtml + ruleCard + phaseTl + `
+  const nowG = new Date();
+  const hourG = nowG.getHours();
+  const greetText = hourG < 11 ? '早上好' : hourG < 14 ? '中午好' : hourG < 18 ? '下午好' : '晚上好';
+  const poems = ['业精于勤，荒于嬉；行成于思，毁于随。','千淘万漉虽辛苦，吹尽狂沙始到金。','不积跬步，无以至千里；不积小流，无以成江海。','宝剑锋从磨砺出，梅花香自苦寒来。','长风破浪会有时，直挂云帆济沧海。','路漫漫其修远兮，吾将上下而求索。'];
+  const poem = poems[(nowG.getDate() + nowG.getMonth()) % poems.length];
+  const dateStr = nowG.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+  const greetCard = `
+    <div class="dash-hero-greet">
+      <div class="greet-date">${dateStr}</div>
+      <div class="greet-main">${greetText}，今天也是进步的一天</div>
+      <div class="greet-poem">「${poem}」</div>
+    </div>`;
+  el.innerHTML = alert + greetCard + recCard + heroCard + goalHtml + `
+    <div class="dash-big-grid">
+      ${dDefHtml}
+      ${ringHtml}
+      ${todoCard}
+      ${sleepStreakCard}
+      ${sleepInsightHtml}
+      ${ruleCard}
+    </div>` + phaseTl + `
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-num ${examCls}">${examDays}</div><div class="dash-label">天后考研 · ${state.settings.examDate}</div></div>
       <div class="dash-card"><div class="dash-num">${fmtMin(todayStudy)}</div><div class="dash-label">今日学习</div></div>
@@ -4245,7 +4324,7 @@ function renderPhaseTimeline() {
 }
 
 // ================= Charts =================
-function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#f3832c'; }
+function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#65735a'; }
 function drawBarChart(canvas, labels, values, color) {
   const dpr = window.devicePixelRatio || 1;
   const cssW = canvas.clientWidth || 300, cssH = 172;
@@ -4503,7 +4582,7 @@ function renderExamOverview() {
       return `<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--border)">
         <div style="font-weight:600;margin-bottom:2px">📅 第${d.week}周（${weekRange(d.week)}）</div>${rows}</div>`;
     }).join('');
-    deficitCard = `<div class="card card-warn" style="border-left:4px solid #e74c3c">
+    deficitCard = `<div class="card card-warn" style="border-left:4px solid var(--danger)">
       <div class="card-title">⚠️ 上周目标未完成（欠账待补）</div>
       <div class="card-sub">每周预算没填满的科目会记成欠账，补做对应科目即可清零。</div>
       ${blocks}
@@ -4515,7 +4594,7 @@ function renderExamOverview() {
   let weakHtml = '';
   if (weak.length) {
     const items = weak.slice(0, 3).map(w => `${subjectConfig[w.sub].icon} ${subjectConfig[w.sub].name}（欠 ${fmtMin(w.mins)}）`).join(' · ');
-    weakHtml = `<div class="card card-rec" style="border-left:4px solid #f3832c">
+    weakHtml = `<div class="card card-rec" style="border-left:4px solid var(--primary)">
       <div class="card-title">🎯 薄弱科目预警</div>
       <div class="card-sub">累计欠账最多：<b>${items}</b><br>优先补这些科目，别让欠账越滚越大。</div>
     </div>`;
@@ -4577,7 +4656,7 @@ function renderExamOverview() {
         <div style="display:flex;gap:4px;font-size:9px;color:var(--text-secondary)"><span style="flex:1;text-align:center">-3</span><span style="flex:1;text-align:center">-2</span><span style="flex:1;text-align:center">-1</span><span style="flex:1;text-align:center">上周</span></div>
       </div>`;
     }).join('');
-    weakTrendHtml = `<div class="card card-rec" style="border-left:4px solid #f3832c">
+    weakTrendHtml = `<div class="card card-rec" style="border-left:4px solid var(--primary)">
       <div class="card-title">📊 近4周每科投入</div>
       <div class="card-sub">每根柱子=那周实际/预算，绿=达标 橙=欠账</div>
       ${rows}
@@ -4690,7 +4769,7 @@ function renderCourseTrackerHtml() {
     const onTrack = hasDl ? (predFinishWeek <= targetWeek) : false;
     const statusCls = !hasDl ? '' : (onTrack ? 'status-good' : 'status-bad');
     const statusTxt = !hasDl ? '待填结束日期' : (onTrack ? '进度正常 ✓' : '进度偏慢 ⚠️');
-    const predColor = !hasDl ? 'var(--text-secondary)' : (onTrack ? 'var(--text-secondary)' : '#e74c3c');
+    const predColor = !hasDl ? 'var(--text-secondary)' : (onTrack ? 'var(--text-secondary)' : 'var(--danger)');
     const predTxt = hasDl ? `按当前节奏约第 ${predFinishWeek} 周完成（截止周前${onTrack ? '✓' : '⚠️ 偏慢'}）` : '填上结束日期后自动评估节奏';
     const dl = (state.courseDeadline && state.courseDeadline[key]) || '';
     const seq = PLAN.courseSeq[c.subj] || [];
@@ -4887,7 +4966,7 @@ function renderSleepChart() {
     values.push(recMap[ds] || 0);
   }
   el.innerHTML = `<div class="card"><div class="card-title">😴 近30天睡眠时长</div><canvas id="sleep-canvas" class="chart"></canvas><div class="legend"><span class="lg-sleep">睡眠分钟</span></div></div>`;
-  drawLineChart(document.getElementById('sleep-canvas'), labels, values, '#5b8c51');
+  drawLineChart(document.getElementById('sleep-canvas'), labels, values, getCssVar('--sage'));
 }
 
 // ================= Report =================
@@ -5188,9 +5267,9 @@ init();
 </div>
 <!-- 定时提醒响铃弹窗 -->
 <div class="modal-overlay" id="memo-alarm-modal" onclick="if(event.target===this) dismissMemoAlarm()">
-  <div class="modal" style="text-align:center;border:2px solid #e74c3c">
+  <div class="modal" style="text-align:center;border:2px solid var(--danger)">
     <div style="font-size:46px;animation:ringshake .8s ease-in-out infinite">⏰</div>
-    <div class="modal-title" style="font-size:20px;margin:6px 0 10px;color:#e74c3c">时间到了！</div>
+    <div class="modal-title" style="font-size:20px;margin:6px 0 10px;color:var(--danger)">时间到了！</div>
     <div id="memo-alarm-text" style="font-size:16px;font-weight:600;line-height:1.6"></div>
     <div id="memo-alarm-image" style="margin:10px 0"></div>
     <div id="memo-alarm-link" style="margin-bottom:10px"></div>
