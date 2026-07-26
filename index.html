@@ -601,11 +601,16 @@
           <div class="card-sub">到点自动弹窗 + 响铃；适合抢购开售、缴费截止等</div>
           <div class="form-row"><input class="input" id="memo-time" type="datetime-local" style="flex:1"></div>
           <div class="form-row"><input class="input" id="memo-text" placeholder="提醒内容（如：某商品开售）" style="flex:1"></div>
-          <div class="form-row"><input class="input" id="memo-link" placeholder="链接（可选）" style="flex:1"></div>
+          <div class="form-row" style="align-items:center;gap:8px">
+            <input class="input" id="memo-link" placeholder="链接（可选）" style="flex:1">
+            <button class="btn btn-secondary btn-small" onclick="pasteMemoLink()" style="flex-shrink:0">📋 粘贴识别</button>
+          </div>
           <div class="form-row" style="align-items:center;gap:8px">
             <input type="file" class="input" id="memo-image" accept="image/*" style="flex:1">
-            <button class="btn btn-primary btn-small" onclick="addMemo()">添加提醒</button>
+            <button class="btn btn-primary btn-small" id="memo-submit-btn" onclick="addMemo()">添加提醒</button>
+            <button class="btn btn-secondary btn-small hidden" id="memo-cancel-btn" onclick="cancelMemoEdit()">取消</button>
           </div>
+          <div id="memo-edit-hint" class="card-sub hidden" style="color:var(--primary);margin-top:2px"></div>
           <div id="memo-list" style="margin-top:12px"></div>
         </div>
       </div>
@@ -2816,6 +2821,7 @@ function checkNote(id) { state.lifeNotes = state.lifeNotes.filter(n => n.id !== 
 
 // ================= 定时提醒备忘录（弹窗 + 响铃） =================
 function newMemoId() { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+let _editingMemoId = null, _editingMemoImage = '';
 function addMemo() {
   const timeEl = document.getElementById('memo-time');
   const textEl = document.getElementById('memo-text');
@@ -2824,20 +2830,31 @@ function addMemo() {
   const time = (timeEl.value || '').trim();
   const text = (textEl.value || '').trim();
   if (!time) { toast('请先选择提醒时间'); return; }
-  if (!text && !linkEl.value.trim() && !imgEl.files.length) { toast('请至少填写提醒内容、链接或图片'); return; }
+  const hasImg = !!(imgEl.files && imgEl.files[0]);
+  const keepImg = _editingMemoId && _editingMemoImage;
+  if (!text && !linkEl.value.trim() && !hasImg && !keepImg) { toast('请至少填写提醒内容、链接或图片'); return; }
   ensureAudio(); // 借用户手势解锁音频，后续到点才能响铃
   const finish = (image) => {
-    state.memos.push({ id: newMemoId(), time, text, link: (linkEl.value || '').trim(), image: image || '', fired: false });
-    timeEl.value = ''; textEl.value = ''; linkEl.value = ''; imgEl.value = '';
-    saveState(); schedulePush(); renderMemos();
-    toast('已添加提醒：' + time.replace('T', ' '));
+    if (_editingMemoId) {
+      const m = (state.memos || []).find(x => x.id === _editingMemoId);
+      if (m) { m.time = time; m.text = text; m.link = (linkEl.value || '').trim(); m.image = image || ''; }
+      _editingMemoId = null; _editingMemoImage = '';
+      resetMemoForm();
+      saveState(); schedulePush(); renderMemos();
+      toast('已修改提醒：' + time.replace('T', ' '));
+    } else {
+      state.memos.push({ id: newMemoId(), time, text, link: (linkEl.value || '').trim(), image: image || '', fired: false });
+      resetMemoForm();
+      saveState(); schedulePush(); renderMemos();
+      toast('已添加提醒：' + time.replace('T', ' '));
+    }
   };
-  if (imgEl.files && imgEl.files[0]) {
+  if (hasImg) {
     const fr = new FileReader();
     fr.onload = () => finish(fr.result);
     fr.readAsDataURL(imgEl.files[0]);
   } else {
-    finish('');
+    finish(keepImg ? _editingMemoImage : '');
   }
 }
 function renderMemos() {
@@ -2858,7 +2875,10 @@ function renderMemos() {
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:2px">${status}${link}</div>
         ${img}
       </div>
-      <div class="task-del" onclick="deleteMemo('${m.id}')">删除</div>
+      <div style="display:flex;gap:14px;align-items:center">
+        <span class="task-del" style="color:var(--primary)" onclick="editMemo('${m.id}')">✏️ 修改</span>
+        <span class="task-del" onclick="deleteMemo('${m.id}')">删除</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2866,6 +2886,41 @@ function deleteMemo(id) {
   if (!confirm('删除这条定时提醒？')) return;
   state.memos = (state.memos || []).filter(m => m.id !== id);
   saveState(); schedulePush(); renderMemos();
+}
+function resetMemoForm() {
+  ['memo-time', 'memo-text', 'memo-link', 'memo-image'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const btn = document.getElementById('memo-submit-btn'); if (btn) btn.textContent = '添加提醒';
+  const cancel = document.getElementById('memo-cancel-btn'); if (cancel) cancel.classList.add('hidden');
+  const hint = document.getElementById('memo-edit-hint'); if (hint) { hint.classList.add('hidden'); hint.textContent = ''; }
+}
+function editMemo(id) {
+  const m = (state.memos || []).find(x => x.id === id);
+  if (!m) return;
+  _editingMemoId = id; _editingMemoImage = m.image || '';
+  document.getElementById('memo-time').value = m.time || '';
+  document.getElementById('memo-text').value = m.text || '';
+  document.getElementById('memo-link').value = m.link || '';
+  const btn = document.getElementById('memo-submit-btn'); if (btn) btn.textContent = '保存修改';
+  const cancel = document.getElementById('memo-cancel-btn'); if (cancel) cancel.classList.remove('hidden');
+  const hint = document.getElementById('memo-edit-hint');
+  if (hint) { hint.classList.remove('hidden'); hint.textContent = '✏️ 正在修改这条提醒，改完点「保存修改」（图片需重新选择，否则保留原图）'; }
+  const t = document.getElementById('memo-time'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelMemoEdit() {
+  _editingMemoId = null; _editingMemoImage = '';
+  resetMemoForm();
+}
+function pasteMemoLink() {
+  if (!navigator.clipboard || !navigator.clipboard.readText) { toast('当前环境不支持读取剪贴板'); return; }
+  navigator.clipboard.readText().then(txt => {
+    const link = extractFirstUrl(txt);
+    if (!link) { toast('剪贴板里没有检测到链接'); return; }
+    document.getElementById('memo-link').value = link;
+    const hint = cleanHint('', txt, link);
+    const fallback = platformNameFromUrl(link) + '链接';
+    if (hint && hint !== fallback) document.getElementById('memo-text').value = hint;
+    toast('已识别链接' + (hint && hint !== fallback ? '并填入内容' : ''));
+  }).catch(() => toast('无法读取剪贴板，请允许权限后重试'));
 }
 function checkMemos() {
   if (!state.memos || !state.memos.length) return;
