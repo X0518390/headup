@@ -21,15 +21,15 @@
       --rose-dark: #9c7c78;
       --rose-light: #f1e9e7;
       --rose-soft: #eaddda;
-      --beige: #d8c9b4;
-      --beige-dark: #b0a08a;
+      --beige: #cabd9f;
+      --beige-dark: #9c8c72;
       --beige-light: #f3ece1;
       --beige-soft: #e8ded0;
       --bg-cream: #f4efe6;
       --danger: #b9857f;
       --danger-light: #f3e6e4;
       --status-good: #7d9b6a;
-      --status-warn: #c9a36a;
+      --status-warn: #bd954d;
       --status-bad: #b9857f;
 
       /* 语义变量（默认绿系，daily/exam） */
@@ -39,7 +39,7 @@
       --bg: var(--bg-cream);
       --card: #fbf8f2;
       --text: #2b2926;
-      --text-secondary: #7a7468;
+      --text-secondary: #5f584c;
       --border: #e7e0d6;
       --rec-a: var(--beige-light); --rec-b: var(--card);
       --warn-a: var(--rose-light); --warn-b: var(--card);
@@ -457,7 +457,7 @@
     .bar-val { font-size: 10px; color: var(--text-secondary); margin-bottom: 3px; white-space: nowrap; }
     .bar-track { flex: 1; width: 22px; display: flex; align-items: flex-end; background: rgba(127,127,127,.12); border-radius: 6px; overflow: hidden; }
     .bar-fill { width: 100%; background: var(--primary); border-radius: 6px 6px 0 0; min-height: 2px; transition: height .3s; }
-    .bar-col.is-today .bar-fill { background: #e8743b; }
+    .bar-col.is-today .bar-fill { background: var(--primary-dark); }
     .bar-col.is-today .bar-val { color: var(--primary); font-weight: 700; }
     .bar-date { font-size: 10px; color: var(--text-secondary); margin-top: 3px; white-space: nowrap; }
     .bar-col.is-today .bar-date { color: var(--primary); font-weight: 700; }
@@ -4626,7 +4626,7 @@ function renderExamOverview() {
       const pct = Math.min(100, Math.round(w.met / 7 * 100));
       return `<div style="flex:1;text-align:center">
         <div style="height:54px;display:flex;align-items:flex-end;justify-content:center">
-          <div style="width:72%;background:${pct>=70?'var(--primary)':'#e0a06a'};border-radius:4px 4px 0 0;height:${pct}%"></div>
+          <div style="width:72%;background:${pct>=70?'var(--primary)':'var(--status-warn)'};border-radius:4px 4px 0 0;height:${pct}%"></div>
         </div>
         <div style="font-size:11px;color:var(--text-secondary);font-weight:600">${w.met}</div>
         <div style="font-size:9px;color:var(--text-secondary)">W${w.pw}</div>
@@ -4647,7 +4647,7 @@ function renderExamOverview() {
       const bars = hist.map(h => {
         const pct = h.budget ? Math.min(100, Math.round(h.actual / h.budget * 100)) : 0;
         return `<div title="${h.pw}周: ${fmtMin(h.actual)}/${fmtMin(h.budget)}" style="flex:1;height:36px;display:flex;align-items:flex-end;justify-content:center">
-          <div style="width:72%;background:${pct>=80?'#2e9e5b':pct>=50?'var(--primary)':'#e0a06a'};border-radius:3px 3px 0 0;height:${Math.max(4,pct)}%"></div>
+          <div style="width:72%;background:${pct>=80?'var(--status-good)':pct>=50?'var(--primary)':'var(--status-warn)'};border-radius:3px 3px 0 0;height:${Math.max(4,pct)}%"></div>
         </div>`;
       }).join('');
       return `<div style="margin-bottom:8px">
@@ -4688,7 +4688,7 @@ function renderExamOverview() {
       <div style="font-size:13px;opacity:.95;text-align:center">当前 <b>${st.phase.name}</b> 阶段 · 第 <b>${st.weekNum}</b> 周 · 目标${PLAN.target.total}+分</div>
       <div class="card-sub" style="color:#fff;opacity:.9;margin-top:8px">今日目标进度</div>
       <div style="font-weight:600;color:#fff">${fmtMin(todayStudy)} / ${fmtMin(goal)}</div>
-      <div class="bar"><div class="bar-fill" style="width:${goalPct}%;background:#fff"></div></div>
+      <div class="bar" style="background:rgba(0,0,0,.16)"><div class="bar-fill" style="width:${goalPct}%;background:#fff"></div></div>
     </div>`;
 
   // 考研科目网格（移入概览，排在本周计划之下）
