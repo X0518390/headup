@@ -384,6 +384,28 @@
     .rtf-ringwrap svg { position: absolute; inset: 0; }
     .rtf-time { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; }
     .rtf-tip { text-align: center; font-size: 10px; opacity: .92; margin-top: 2px; }
+    /* 近14天学习时长：可横滑的每日柱状图 */
+    .bars-scroll { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 6px 2px 10px; scrollbar-width: thin; }
+    .bars-scroll::-webkit-scrollbar { height: 6px; }
+    .bars-scroll::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; opacity: .6; }
+    .bar-col { flex: 0 0 auto; width: 40px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 168px; }
+    .bar-val { font-size: 10px; color: var(--text-secondary); margin-bottom: 3px; white-space: nowrap; }
+    .bar-track { flex: 1; width: 22px; display: flex; align-items: flex-end; background: rgba(127,127,127,.12); border-radius: 6px; overflow: hidden; }
+    .bar-fill { width: 100%; background: var(--primary); border-radius: 6px 6px 0 0; min-height: 2px; transition: height .3s; }
+    .bar-col.is-today .bar-fill { background: #e8743b; }
+    .bar-col.is-today .bar-val { color: var(--primary); font-weight: 700; }
+    .bar-date { font-size: 10px; color: var(--text-secondary); margin-top: 3px; white-space: nowrap; }
+    .bar-col.is-today .bar-date { color: var(--primary); font-weight: 700; }
+    .bar-empty { width: 22px; background: transparent; }
+    /* 规划资料：文件上传 */
+    .plan-file-input { margin-top: 6px; font-size: 12px; }
+    .plan-link-type { display: flex; gap: 6px; margin: 6px 0 2px; }
+    .plan-link-type button { font-size: 11px; padding: 3px 8px; border-radius: 14px; border: 1px solid var(--line, #e3e3e3); background: #f4f4f4; color: #555; }
+    .plan-link-type button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    /* 看课进度：点按改名/改总数 */
+    .course-name-edit, .course-total-edit { border: 1px solid var(--primary); border-radius: 6px; padding: 2px 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .course-total-edit { width: 64px; }
+    .editable { cursor: text; border-bottom: 1px dashed var(--primary); }
   </style>
 </head>
 <body>
@@ -1022,6 +1044,7 @@ let state = {
   examStages: {},
   courses: { zhangyu: 15, wangdao: 8 },
   courseActive: ['zhangyu', 'wangdao'],
+  courseMeta: {},
   courseDeadline: { zhangyu: '2026-09-24', wangdao: '2026-09-24' },
   planFiles: [],
   weeklyReview: {},
@@ -1095,17 +1118,24 @@ function ensureState() {
   if (!state.studyRecords) state.studyRecords = [];
   if (!state.examStages) state.examStages = {};
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
+  if (!state.courseMeta) state.courseMeta = {};
   if (!state.courseActive) state.courseActive = ['zhangyu', 'wangdao'];
   if (!state.courseDeadline) state.courseDeadline = { zhangyu: '2026-09-24', wangdao: '2026-09-24' };
   if (!state.planFiles) state.planFiles = [];
-  if (!state._seededPlanFilesV2) {
-    // 三份规划资料（来自用户的复习计划 / 张宇节奏 / 王道节奏 PDF），放在仓库 plan/ 下，部署后可直接点开
-    state.planFiles = [
-      { id: 'pf_plan', name: '南开电子信息非全考研复习计划（总览）', url: 'plan/kaoyan-plan.pdf', note: '整体复习计划：科目、5阶段(W1–W20)、每周安排、资料清单' },
-      { id: 'pf_zy',  name: '张宇基础30讲 每日看课节奏',              url: 'plan/zhangyu-pace.pdf', note: '数二看课节奏：高数18讲+线代6讲=24讲，约90节' },
-      { id: 'pf_wd',  name: '王道数据结构 每日看课节奏',              url: 'plan/wangdao-pace.pdf', note: '408数据结构看课节奏：8章约80节' }
+  if (!state._seededPlanFilesV3) {
+    // 三份规划资料（用户提供的复习计划 / 张宇节奏 / 王道节奏 PDF）。
+    // 用 fileKey 关联 IndexedDB：首次加载会从仓库 plan/ 抓回并持久化，之后用 blob 打开，最稳。
+    const seeds = [
+      { id: 'pf_plan', name: '南开电子信息非全考研复习计划（总览）', url: 'plan/kaoyan-plan.pdf', fileKey: 'seed_kaoyan', note: '整体复习计划：科目、5阶段(W1–W20)、每周安排、资料清单' },
+      { id: 'pf_zy',  name: '张宇基础30讲 每日看课节奏',              url: 'plan/zhangyu-pace.pdf', fileKey: 'seed_zhangyu', note: '数二看课节奏：高数18讲+线代6讲=24讲，约90节' },
+      { id: 'pf_wd',  name: '王道数据结构 每日看课节奏',              url: 'plan/wangdao-pace.pdf', fileKey: 'seed_wangdao', note: '408数据结构看课节奏：8章约80节' }
     ];
-    state._seededPlanFilesV2 = true;
+    if (!state.planFiles) state.planFiles = [];
+    // 给已部署 V2 的用户的同名/同url条目补上 fileKey（不破坏其已有条目）
+    state.planFiles.forEach(f => { const s = seeds.find(s => s.url && f.url === s.url); if (s) f.fileKey = s.fileKey; });
+    // 缺哪条补哪条
+    seeds.forEach(s => { if (!state.planFiles.some(f => f.url === s.url)) state.planFiles.push(Object.assign({}, s)); });
+    state._seededPlanFilesV3 = true;
     saveState();
   }
   if (!state.weeklyReview) state.weeklyReview = {};
@@ -2036,6 +2066,7 @@ function renderHobbies() {
       </div>
       <div class="card-sub" style="margin-top:6px">${earned ? '本周目标已达标，奖励已存入银行 ✅' : `本周还差 <b>${remainDays}</b> 天达标即可存入奖励`}</div>
       <div class="card-sub" style="margin:8px 0 2px">每完成 1 个番茄 +${rate} 分（点击奖励即可开始计时兑换）</div>
+      <div style="margin-top:6px"><button class="btn btn-small btn-secondary" onclick="resetHobbyBank()">🧹 清零余额</button></div>
       <div id="reward-body-mount"></div>`;
     grid.innerHTML = '';
     state.hobbies.forEach(h => {
@@ -2732,13 +2763,11 @@ function renderLifeCalendar() {
   for (let d=1; d<=days; d++) {
     const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dayRecs = state.lifeRecords.filter(r => r.date === ds);
-    // 日历格只显示手动添加的事项；番茄钟用右上角小徽章计数
+    // 日历格只显示手动添加的事项；番茄钟不在这里计数（见上方番茄钟汇总卡）
     const manRecs = dayRecs.filter(r => r.src !== 'pomo');
-    const pomoCount = dayRecs.filter(r => r.src === 'pomo').length;
     const th = manRecs.slice(0,3).map(r => `<div class="cal-task">${escapeHtml(r.name)}${r.durationText?' '+r.durationText:''}</div>`).join('') + (manRecs.length>3 ? '<div class="cal-task">…</div>' : '');
-    const badge = pomoCount > 0 ? `<div class="cal-pomo-badge" title="番茄钟 ${pomoCount} 个（查看上方番茄钟汇总）">🍅 ${pomoCount}</div>` : '';
     const isToday = ds === todayS, isSel = ds === lifeSelectedDate;
-    html += `<div class="cal-cell ${isToday?'cal-today':''} ${isSel?'cal-sel':''}" onclick="lifeSelectDate('${ds}')"><div class="cal-day">${d}</div>${th}${badge}</div>`;
+    html += `<div class="cal-cell ${isToday?'cal-today':''} ${isSel?'cal-sel':''}" onclick="lifeSelectDate('${ds}')"><div class="cal-day">${d}</div>${th}</div>`;
   }
   html += '</div>';
   wrap.innerHTML = html;
@@ -2765,20 +2794,19 @@ function renderLifeCalendarDetail() {
   const detail = document.getElementById('life-calendar-detail');
   if (!detail) return;
   const allRecs = state.lifeRecords.filter(r => r.date === lifeSelectedDate);
-  const pomoRecs = allRecs.filter(r => r.src === 'pomo');
   const manRecs = allRecs.filter(r => r.src !== 'pomo');
-  let html = `<div class="card-sub">${lifeSelectedDate} · 番茄钟 ${pomoRecs.length} · 事项 ${manRecs.length}</div>`;
+  const pomoN = allRecs.filter(r => r.src === 'pomo').length;
+  let html = `<div class="card-sub">${lifeSelectedDate} · 当天事项 ${manRecs.length} 条${pomoN ? ' · 🍅 ' + pomoN + ' 个（见上方番茄钟汇总卡）' : ''}</div>`;
   html += `<div class="form-row" style="margin-top:8px"><input class="input" id="life-event-name" placeholder="添加当天事项名称"></div><button class="btn btn-small btn-primary" onclick="addLifeEvent()">添加事项</button>`;
-  html += `<div style="margin-top:8px"><button class="btn btn-small btn-secondary" onclick="downloadIcs('${lifeSelectedDate}')">📅 导出当天到日历(.ics)</button></div>`;
-  if (pomoRecs.length) {
-    html += `<div style="margin-top:12px;font-weight:600;font-size:13px;color:var(--primary)">🍅 番茄钟记录</div>`;
-    html += pomoRecs.map(r => `<div class="word-row"><div class="word-en">${escapeHtml(r.name)}</div><div class="word-cn">${r.durationText || '手动添加'}</div><div class="word-del" onclick="deleteStudySession('${r.id}')">×</div></div>`).join('');
-  }
   if (manRecs.length) {
     html += `<div style="margin-top:12px;font-weight:600;font-size:13px">📝 当天事项</div>`;
     html += manRecs.map(r => `<div class="word-row"><div class="word-en">${escapeHtml(r.name)}</div><div class="word-cn">${r.durationText || '手动添加'}</div><div class="word-del" onclick="deleteLifeRecord('${r.id}')">×</div></div>`).join('');
   }
-  if (!pomoRecs.length && !manRecs.length) html += '<div class="empty">当天暂无记录</div>';
+  if (!manRecs.length) {
+    html += pomoN
+      ? '<div class="empty">当天暂无事项（番茄钟在上方汇总卡）</div>'
+      : '<div class="empty">当天暂无记录</div>';
+  }
   detail.innerHTML = html;
 }
 function lifeChangeMonth(d) {
@@ -2829,46 +2857,6 @@ function deleteStudySession(id) {
   renderStudyStats();
   renderHobbies();
   toast('已删除该条记录，相关统计已同步更新');
-}
-
-// ================= 导出当日到系统日历（.ics） =================
-function icsEsc(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); }
-// 把某一天的番茄钟记录导出成 .ics 文件并触发下载（手机打开即可「添加到日历」）
-function downloadIcs(ds) {
-  const recs = state.lifeRecords.filter(r => r.date === ds);
-  if (!recs.length) { toast('当天暂无番茄记录，无法导出到日历'); return; }
-  let cursor = new Date(ds + 'T09:00:00'); // 从 09:00 起把当天记录顺序排开
-  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//headup//study-plan//CN', 'CALSCALE:GREGORIAN'];
-  recs.forEach((r, i) => {
-    const dur = r.durationMin || 30;
-    const start = new Date(cursor);
-    const end = new Date(cursor.getTime() + dur * 60000);
-    const f = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-    L.push(
-      'BEGIN:VEVENT',
-      'UID:' + (r.id || ('h' + i)) + '@headup',
-      'DTSTART:' + f(start),
-      'DTEND:' + f(end),
-      'SUMMARY:' + icsEsc(r.name || '学习'),
-      'DESCRIPTION:' + icsEsc(r.durationText || (dur + '分钟')),
-      'END:VEVENT'
-    );
-    cursor = end;
-  });
-  L.push('END:VCALENDAR');
-  const blob = new Blob([L.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (isIOS) {
-    // iOS Safari 不支持 <a download>, 直接打开 .ics 让系统弹"添加到日历"
-    window.location.href = url;
-  } else {
-    const a = document.createElement('a');
-    a.href = url; a.download = 'headup-' + ds + '.ics';
-    document.body.appendChild(a); a.click(); a.remove();
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast(isIOS ? ('已生成 ' + ds + ' 的日历文件，按"好"后系统会弹出"添加日历" 📅') : ('已下载 ' + ds + ' 的日历文件，双击即可导入 📅'));
 }
 
 function addNote() {
@@ -3049,6 +3037,14 @@ function downloadMemoIcs(id) {
   const ics = lines.join('\r\n');
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    // iOS Safari 不支持 <a download>，直接打开 .ics 让系统弹"添加到日历"
+    window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    toast('已生成日历文件，按"好"后系统会弹出"添加到日历" 📅');
+    return;
+  }
   const a = document.createElement('a');
   a.href = url; a.download = 'headup-提醒-' + (m.text || 'memo') + '.ics';
   document.body.appendChild(a); a.click(); a.remove();
@@ -3657,6 +3653,13 @@ function isAfterBedtime() {
   if (bedMin > morningCutoff && nowMin < morningCutoff) return true;
   return false;
 }
+// 时间银行余额清零（用于清掉历史累计/误加的分钟；不影响已打卡记录与每周奖励逻辑）
+function resetHobbyBank() {
+  if (!confirm('确定把「爱好时间银行」余额清零吗？（已打卡的连胜记录不受影响）')) return;
+  state.hobbyBank = 0;
+  saveState(); schedulePush(); renderHobbies();
+  toast('时间银行已清零');
+}
 function bedtimeCountdown() {
   const bt = state.settings.bedTime || '23:30';
   const [bh, bm] = bt.split(':').map(Number);
@@ -4195,40 +4198,115 @@ function drawLineChart(canvas, labels, values, color) {
   for (let i = 0; i < n; i += Math.max(1, Math.ceil(n/7))) ctx.fillText(labels[i], xAt(i), H - padBottom/2);
 }
 
-// ================= 规划资料（考研页底部，可增删） =================
+// ================= 规划资料（考研页底部，可增删；支持链接或本地文件） =================
+// 本地上传的文件用 IndexedDB 持久化（避免占满 localStorage），渲染时生成 blob 链接打开
+const IDB_NAME = 'headup_files', IDB_STORE = 'blobs';
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = e => { const db = e.target.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function idbPut(key, blob) {
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(blob, key);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  }));
+}
+function idbGet(key) {
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readonly'); const rq = tx.objectStore(IDB_STORE).get(key);
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  })).catch(() => null);
+}
+function idbDel(key) {
+  return idbOpen().then(db => new Promise(res => {
+    const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = () => res(); tx.onerror = () => res();
+  }));
+}
+// 渲染后把带 fileKey 的条目升级为 blob 链接（若 IndexedDB 没有，则尝试从 url 抓回）
+function hydratePlanFileLinks() {
+  document.querySelectorAll('a[data-filekey]').forEach(async a => {
+    const key = a.getAttribute('data-filekey'); if (!key) return;
+    let blob = null;
+    try { blob = await idbGet(key); } catch (e) {}
+    if (!blob) {
+      const src = a.getAttribute('data-src');
+      if (src) { try { const r = await fetch(src); if (r.ok) { blob = await r.blob(); await idbPut(key, blob); } } catch (e) {} }
+    }
+    if (blob) { a.href = URL.createObjectURL(blob); a.removeAttribute('target'); a.removeAttribute('rel'); a.dataset.ready = '1'; }
+  });
+}
+let pfType = 'link';
+function setPfType(t) {
+  pfType = t;
+  document.getElementById('pf-type-link').classList.toggle('active', t === 'link');
+  document.getElementById('pf-type-file').classList.toggle('active', t === 'file');
+  document.getElementById('pf-url-row').classList.toggle('hidden', t !== 'link');
+  document.getElementById('pf-file-row').classList.toggle('hidden', t !== 'file');
+}
 function renderPlanFilesHtml() {
   const files = state.planFiles || [];
-  const rows = files.length ? files.map(f => `
-    <div class="word-row">
+  const rows = files.length ? files.map(f => {
+    const isFile = !!f.fileKey;
+    const openBtn = isFile
+      ? `<a class="task-link-open" data-filekey="${f.fileKey}" data-src="${escapeAttr(f.url || '')}" href="${escapeAttr(f.url || '#')}" ${f.url ? 'target="_blank" rel="noopener"' : ''} style="font-size:12px">📎 打开文件</a>`
+      : (f.url ? `<a class="task-link-open" href="${escapeAttr(f.url)}" target="_blank" rel="noopener" style="font-size:12px">🔗 打开</a>` : '');
+    return `<div class="word-row">
       <div class="word-en">${escapeHtml(f.name)}</div>
-      <div class="word-cn">${f.note ? escapeHtml(f.note) : (f.url ? escapeHtml(f.url) : '规划资料')}</div>
-      ${f.url ? `<a class="task-link-open" href="${escapeAttr(f.url)}" style="font-size:12px">🔗 打开</a>` : ''}
+      <div class="word-cn">${f.note ? escapeHtml(f.note) : (isFile ? '本地文件' : (f.url ? escapeHtml(f.url) : '规划资料'))}</div>
+      ${openBtn}
       <div class="word-del" onclick="deletePlanFile('${f.id}')" title="删除">×</div>
-    </div>`).join('') : '<div class="empty">还没有规划资料，下面添加。</div>';
+    </div>`;
+  }).join('') : '<div class="empty">还没有规划资料，下面添加。</div>';
+  setTimeout(hydratePlanFileLinks, 50);
   return `<div class="card">
     <div class="card-title">🗂️ 规划资料</div>
-    <div class="card-sub">放你的复习大纲、计划表、资料链接等，可随时增删。</div>
+    <div class="card-sub">放复习大纲、计划表、资料等；可填链接，也可直接上传本地文件。</div>
     ${rows}
     <div class="form-row" style="margin-top:8px"><input class="input" id="plan-file-name" placeholder="资料名称，如：数二考试大纲"></div>
-    <div class="form-row"><input class="input" id="plan-file-url" placeholder="链接（可留空）"></div>
+    <div class="plan-link-type">
+      <button type="button" id="pf-type-link" class="${pfType==='link'?'active':''}" onclick="setPfType('link')">🔗 链接</button>
+      <button type="button" id="pf-type-file" class="${pfType==='file'?'active':''}" onclick="setPfType('file')">📎 本地文件</button>
+    </div>
+    <div class="form-row ${pfType==='link'?'':'hidden'}" id="pf-url-row"><input class="input" id="plan-file-url" placeholder="链接地址（http(s)://…）"></div>
+    <div class="form-row ${pfType==='file'?'':'hidden'}" id="pf-file-row"><input type="file" id="plan-file-file" class="plan-file-input"></div>
     <div class="form-row"><input class="input" id="plan-file-note" placeholder="备注（可留空）"></div>
     <button class="btn btn-small btn-primary" onclick="addPlanFile()">＋ 添加资料</button>
   </div>`;
 }
 function addPlanFile() {
   const n = document.getElementById('plan-file-name');
-  const u = document.getElementById('plan-file-url');
-  const note = document.getElementById('plan-file-note');
   if (!n) return;
   const name = (n.value || '').trim();
   if (!name) { toast('请填写资料名称'); return; }
+  const note = (document.getElementById('plan-file-note') || {}).value || '';
+  if (pfType === 'file') {
+    const fEl = document.getElementById('plan-file-file');
+    if (!fEl || !fEl.files || !fEl.files[0]) { toast('请选择一个本地文件'); return; }
+    const file = fEl.files[0];
+    const key = 'pf_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+    const id = 'pf' + Date.now().toString(36);
+    idbPut(key, file).then(() => {
+      if (!state.planFiles) state.planFiles = [];
+      state.planFiles.push({ id, name, fileKey: key, url: '', note: (note || '').trim() });
+      saveState(); schedulePush(); renderExam(); toast('已添加本地文件：' + name);
+    }).catch(() => toast('文件保存失败（浏览器可能不支持本地存储）'));
+    return;
+  }
+  const u = document.getElementById('plan-file-url');
   if (!state.planFiles) state.planFiles = [];
-  state.planFiles.push({ id: 'pf' + Date.now().toString(36) + Math.random().toString(36).slice(2,4), name, url: (u.value || '').trim(), note: (note.value || '').trim() });
+  state.planFiles.push({ id: 'pf' + Date.now().toString(36) + Math.random().toString(36).slice(2,4), name, url: (u.value || '').trim(), note: (note || '').trim() });
   saveState(); schedulePush();
   if (state.view === 'exam') renderExam();
   toast('已添加规划资料');
 }
 function deletePlanFile(id) {
+  const f = (state.planFiles || []).find(x => x.id === id);
+  if (f && f.fileKey) idbDel(f.fileKey).catch(() => {});
   state.planFiles = (state.planFiles || []).filter(x => x.id !== id);
   saveState(); schedulePush();
   if (state.view === 'exam') renderExam();
@@ -4424,8 +4502,8 @@ function renderExamOverview() {
     + renderRecitePlanHtml() + renderReviewPlanHtml() + budgetCard + deficitCard + weakHtml + streakHtml + weekTrendHtml + weakTrendHtml + courseCard + msCard + `
     <div class="card">
       <div class="card-title">📈 近14天学习时长</div>
-      <canvas id="exam-trend" class="chart"></canvas>
-      <div class="legend"><span class="lg-study">学习分钟</span></div>
+      <div id="exam-trend" class="bars-scroll"></div>
+      <div class="legend"><span class="lg-study">每天学习分钟（左右滑动看14天）</span></div>
     </div>
     <button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="openWeeklyReview()">📝 本周复盘（周日花10分钟总结）</button>` + renderMockPlanHtml() + renderMockSetHtml() + stagesHtml + renderPlanFilesHtml();
   drawExamTrend();
@@ -4436,6 +4514,35 @@ function weekNumOf(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return Math.floor((d - start) / (7 * 86400000)) + 1;
 }
+// 看课课程名/总数支持点按修改（覆盖写入 state.courseMeta，持久化）
+function courseName(key) { const m = state.courseMeta && state.courseMeta[key]; return (m && m.name) || (PLAN.courses[key] && PLAN.courses[key].name) || key; }
+function courseTotal(key) { const m = state.courseMeta && state.courseMeta[key]; return (m && m.total) || (PLAN.courses[key] && PLAN.courses[key].total) || 0; }
+function saveCourseMeta(key, patch) {
+  if (!state.courseMeta) state.courseMeta = {};
+  state.courseMeta[key] = Object.assign({}, state.courseMeta[key], patch);
+  saveState(); schedulePush();
+  if (state.view === 'exam') renderExam();
+}
+function editCourseName(key) {
+  const span = document.getElementById('course-name-' + key); if (!span) return;
+  const cur = courseName(key);
+  span.outerHTML = `<input class="course-name-edit" id="course-name-input-${key}" value="${escapeAttr(cur)}">`;
+  const inp = document.getElementById('course-name-input-' + key);
+  inp.focus(); inp.select();
+  const commit = () => { const v = (inp.value || '').trim() || cur; saveCourseMeta(key, { name: v }); };
+  inp.onblur = commit;
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } else if (e.key === 'Escape') { renderExam(); } };
+}
+function editCourseTotal(key) {
+  const span = document.getElementById('course-total-' + key); if (!span) return;
+  const cur = courseTotal(key);
+  span.outerHTML = `<input class="course-total-edit" id="course-total-input-${key}" value="${cur}">`;
+  const inp = document.getElementById('course-total-input-' + key);
+  inp.focus(); inp.select();
+  const commit = () => { let v = parseInt(inp.value, 10); if (!v || v < 1) v = cur; saveCourseMeta(key, { total: v }); };
+  inp.onblur = commit;
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } else if (e.key === 'Escape') { renderExam(); } };
+}
 function renderCourseTrackerHtml() {
   if (!state.courseActive) state.courseActive = ['zhangyu', 'wangdao'];
   const st = getPlanStatus();
@@ -4443,7 +4550,8 @@ function renderCourseTrackerHtml() {
     const c = PLAN.courses[key];
     if (!c) return '';
     const done = (state.courses && state.courses[key]) || 0;
-    const total = c.total;
+    const total = courseTotal(key);
+    const name = courseName(key);
     const pct = Math.min(100, Math.round(done / total * 100));
     const remaining = Math.max(0, total - done);
     const hasDl = !!(state.courseDeadline && state.courseDeadline[key]);
@@ -4458,19 +4566,18 @@ function renderCourseTrackerHtml() {
     const predColor = !hasDl ? 'var(--text-secondary)' : (onTrack ? 'var(--text-secondary)' : '#e74c3c');
     const predTxt = hasDl ? `按当前节奏约第 ${predFinishWeek} 周完成（截止周前${onTrack ? '✓' : '⚠️ 偏慢'}）` : '填上结束日期后自动评估节奏';
     const dl = (state.courseDeadline && state.courseDeadline[key]) || '';
-    // 看完自动加入下一门（用户还没加时才显示手动按钮作为兜底）
     const seq = PLAN.courseSeq[c.subj] || [];
     const idx = seq.indexOf(key);
     const nextKey = (idx >= 0 && idx < seq.length - 1) ? seq[idx + 1] : null;
     const nextBtn = (done >= total && nextKey && state.courseActive.indexOf(nextKey) < 0)
-      ? `<div style="margin-top:6px"><button class="btn btn-small btn-primary" onclick="advanceCourseNow('${key}')">➕ 加入下一门：${PLAN.courses[nextKey].name}</button></div>` : '';
+      ? `<div style="margin-top:6px"><button class="btn btn-small btn-primary" onclick="advanceCourseNow('${key}')">➕ 加入下一门：${courseName(nextKey)}</button></div>` : '';
     return `<div style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:600">${c.name}</span>
-        <span class="${statusCls}" style="font-size:12px">${statusTxt}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span id="course-name-${key}" class="editable" onclick="editCourseName('${key}')" title="点击修改课程名" style="font-weight:600">${escapeHtml(name)}</span>
+        <span class="${statusCls}" style="font-size:12px;white-space:nowrap">${statusTxt}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px">
-        <span>${done} / ${total} 节 · 剩 ${remaining} 节</span>
+        <span>${done} / <span id="course-total-${key}" class="editable" onclick="editCourseTotal('${key}')" title="点击修改总节数">${total}</span> 节 · 剩 ${remaining} 节</span>
         <span style="color:var(--text-secondary)">${pct}%</span>
       </div>
       <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
@@ -4479,7 +4586,7 @@ function renderCourseTrackerHtml() {
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
         <button class="btn btn-small btn-secondary" onclick="bumpCourse('${key}',-1)">−1节</button>
         <button class="btn btn-small btn-primary" onclick="bumpCourse('${key}',1)">+1节</button>
-        <button class="btn btn-small btn-secondary" onclick="bumpCourse('${key}',5)">+5节</button>
+        <button class="btn btn-small btn-secondary" onclick="bumpCourse('${key}',3)">+3节</button>
         <label style="font-size:12px;color:var(--text-secondary)">结束 <input type="date" class="input" style="width:auto;display:inline-block;padding:2px 4px;font-size:12px" value="${dl}" onchange="setCourseDeadline('${key}', this.value)"></label>
       </div>
       ${nextBtn}
@@ -4487,14 +4594,14 @@ function renderCourseTrackerHtml() {
   }).join('');
   return `<div class="card">
     <div class="card-title">📺 看课进度</div>
-    <div class="card-sub">看「视频课」的节数，看完一节就 +1。数学二：基础30讲 → 强化高数18讲 → 强化线代9讲；408：王道数据结构 → 组成原理 → 操作系统 → 计网。一门看完自动加入下一门（套卷/真题是做题，不算看课）。</div>
+    <div class="card-sub">看「视频课」的节数，看完一节就 +1。数学二：基础30讲 → 强化高数18讲 → 强化线代9讲；408：王道数据结构 → 组成原理 → 操作系统 → 计网。一门看完自动加入下一门（套卷/真题是做题，不算看课）。点课程名 / 总节数可直接修改。</div>
     ${rows}
   </div>`;
 }
-// 课程进度 +1/−1/+5：跨过满进度时自动加入该科目下一门课程
+// 课程进度 +1/−1/+3：跨过满进度时自动加入该科目下一门课程
 function bumpCourse(key, delta) {
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
-  const total = PLAN.courses[key].total;
+  const total = courseTotal(key);
   const before = state.courses[key] || 0;
   const after = Math.max(0, Math.min(total, before + delta));
   state.courses[key] = after;
@@ -4553,16 +4660,32 @@ function addMockSet(key, delta) {
   state.mockSets[key] = Math.max(0, Math.min(totals[key], (state.mockSets[key] || 0) + delta));
   saveState(); schedulePush(); if (state.view === 'exam') renderExam();
 }
+// 近14天学习时长：可横滑的每日柱状图（每天一根，显示当天分钟数）
+function fmtMinShort(m) { if (!m) return '0'; if (m >= 60) { const h = m / 60; return (Math.round(h * 10) / 10) + 'h'; } return m + 'm'; }
 function drawExamTrend() {
   const c = document.getElementById('exam-trend'); if (!c) return;
-  const labels = [], values = [];
+  renderDailyBars(c);
+}
+function renderDailyBars(c) {
+  if (!c) return;
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const todayS = dateStr(t0);
+  const vals = [], labels = [], isTodayArr = [];
   for (let i = 13; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
+    const d = new Date(t0); d.setDate(d.getDate() - i);
     const ds = dateStr(d);
-    labels.push((d.getMonth()+1) + '/' + d.getDate());
-    values.push(studySum(r => r.date === ds));
+    const v = studySum(r => r.date === ds);
+    vals.push(v); labels.push((d.getMonth() + 1) + '/' + d.getDate()); isTodayArr.push(ds === todayS);
   }
-  drawBarChart(c, labels, values, getCssVar('--primary'));
+  const max = Math.max(60, ...vals);
+  c.innerHTML = vals.map((v, i) => {
+    const h = Math.round((v / max) * 100);
+    return `<div class="bar-col ${isTodayArr[i] ? 'is-today' : ''}">
+      <div class="bar-val">${fmtMinShort(v)}</div>
+      <div class="bar-track"><div class="bar-fill" style="height:${h}%"></div></div>
+      <div class="bar-date">${labels[i]}</div>
+    </div>`;
+  }).join('');
 }
 function toggleStage(sub, k) {
   if (!state.examStages[sub]) state.examStages[sub] = {};
@@ -4582,21 +4705,14 @@ function renderStudyStats() {
       <div class="stat-card"><div class="stat-num">${fmtMin(week)}</div><div class="stat-label">本周</div></div>
       <div class="stat-card"><div class="stat-num">${fmtMin(month)}</div><div class="stat-label">本月</div></div>
     </div>
-    <canvas id="life-chart" class="chart" style="margin-top:10px"></canvas>
-    <div class="legend"><span class="lg-study">学习分钟</span></div>
+    <div id="life-chart" class="bars-scroll" style="margin-top:10px"></div>
+    <div class="legend"><span class="lg-study">每天学习分钟（左右滑动看14天）</span></div>
   </div>`;
   drawLifeChart();
 }
 function drawLifeChart() {
   const c = document.getElementById('life-chart'); if (!c) return;
-  const labels = [], values = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    const ds = dateStr(d);
-    labels.push((d.getMonth()+1) + '/' + d.getDate());
-    values.push(studySum(r => r.date === ds));
-  }
-  drawBarChart(c, labels, values, getCssVar('--primary'));
+  renderDailyBars(c);
 }
 
 // ================= Sleep Chart (Habits) =================
