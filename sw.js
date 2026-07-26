@@ -1,6 +1,7 @@
-const CACHE_NAME = 'lamb-workbench-v13';
-// 相对路径:兼容 GitHub Pages 子路径(/headup/)与 Vercel 根路径部署
-const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE_NAME = 'lamb-workbench-v15';
+// 不缓存 index.html。HTML 每次导航都用 cache-busting 从网络拉最新，
+// 避免把陈旧 HTML 存进 Cache Storage 导致一直显示旧版（六项默认任务）。
+const ASSETS = ['./manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
@@ -8,20 +9,20 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys()
-      // 清掉所有旧缓存（包括当前 v12），下次导航完全由网络决定
-      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
-      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
-      .then(clients => {
-        clients.forEach(c => {
-          try { c.postMessage({ type: 'NEW_VERSION' }); } catch (e) {}
-          // 强制刷新所有打开的页面：让新 SW + no-store 立刻生效，避免用户需要手动刷第二次
-          try { c.reload(); } catch (e) {}
-        });
-      })
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    // 清掉所有旧缓存，确保旧版 HTML 不会残留
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    // 必须先 claim，让本 SW 接管所有页面，之后的刷新才由本 SW 处理（用 cache-busting 拉最新 HTML）
+    await self.clients.claim();
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clients.forEach(c => {
+      try { c.postMessage({ type: 'NEW_VERSION' }); } catch (e) {}
+      // 强制刷新到带时间戳的新 URL：本 SW 接管后用 cache-busting 拉到最新 HTML，避免闪回旧版
+      try { c.navigate((c.url || '').split('?')[0] + '?swreload=' + Date.now()); }
+      catch (e) { try { c.reload(); } catch (e2) {} }
+    });
+  })());
 });
 
 function icsEscape(s) {
@@ -82,14 +83,16 @@ self.addEventListener('fetch', event => {
     }
   } catch (e) {}
 
-  // Navigation: 完全 no-store + 追加唯一查询参数，强制 CDN 边缘 cache miss，
-  // 保证每次导航都从 GitHub Pages 源站拉到最新 HTML（解决 CDN max-age=600 缓存旧版导致用户看不到新代码的问题）
+  // Navigation: 完全 no-store + 追加唯一时间戳查询，强制 CDN 边缘 cache miss，
+  // 保证每次导航都从 GitHub Pages 源站拉到最新 HTML（解决 CDN 缓存旧版导致一直看不到新代码的问题）
   if (event.request.mode === 'navigate') {
     const url = new URL(event.request.url);
     const freshUrl = url.pathname + '?t=' + Date.now();
     event.respondWith(fetch(freshUrl, { cache: 'no-store' }));
     return;
   }
+
+  // 其它静态资源：网络优先，离线时回退缓存
   event.respondWith(
     fetch(event.request)
       .then(res => {
