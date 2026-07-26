@@ -948,8 +948,17 @@ const PLAN = {
     { key: 'fushi',   name: '复试',         date: '2027-03-20' }
   ],
   courses: {
-    zhangyu: { name: '张宇基础30讲（数学二）', total: 85, pace: 12, deadline: '2026-09-24', note: '工作日1.5-2节 / 周末3-4节' },
-    wangdao: { name: '王道数据结构（408）',   total: 80, pace: 9,  deadline: '2026-09-24', note: '与数学并行：工作日1.5-2节 / 周末3-4节' }
+    zhangyu:  { name: '张宇基础30讲（数学二）',      total: 85, subj: 'math',  pace: 12, deadline: '2026-09-24', note: '基础阶段：工作日1.5-2节 / 周末3-4节' },
+    gaoshu18: { name: '高数18讲（数学二）',          total: 18, subj: 'math',  pace: 4,  deadline: '', note: '强化阶段：高数系统强化跟练' },
+    xianxing9:{ name: '线代9讲（数学二）',           total: 9,  subj: 'math',  pace: 2,  deadline: '', note: '强化阶段：线代系统强化' },
+    zhangyu84:{ name: '张宇8+4 / 李林6+4 模拟卷',   total: 12, subj: 'math',  pace: 3,  deadline: '', note: '冲刺阶段：保持手感' },
+    wangdao:  { name: '王道数据结构（408）',         total: 80, subj: 'cs408', pace: 9,  deadline: '2026-09-24', note: '基础阶段：与数学并行，工作日1.5-2节 / 周末3-4节' },
+    wangdao8: { name: '王道8套卷（408）',            total: 8,  subj: 'cs408', pace: 2,  deadline: '', note: '冲刺阶段：套卷模拟' }
+  },
+  // 看课顺序：每科按阶段推进；上一门看完会自动加入该科目下一门（结束日期自己填）
+  courseSeq: {
+    math:  ['zhangyu', 'gaoshu18', 'xianxing9', 'zhangyu84'],
+    cs408: ['wangdao', 'wangdao8']
   },
   rules: [
     '睡眠第一、不熬夜——精力才是持久战的本钱',
@@ -1008,6 +1017,9 @@ let state = {
   studyRecords: [],
   examStages: {},
   courses: { zhangyu: 15, wangdao: 8 },
+  courseActive: ['zhangyu', 'wangdao'],
+  courseDeadline: { zhangyu: '2026-09-24', wangdao: '2026-09-24' },
+  planFiles: [],
   weeklyReview: {},
   mockSets: { math: 0, cs408: 0 },
   deficits: { weekly: {}, daily: {}, _wk: 0, _day: '' },
@@ -1079,6 +1091,19 @@ function ensureState() {
   if (!state.studyRecords) state.studyRecords = [];
   if (!state.examStages) state.examStages = {};
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
+  if (!state.courseActive) state.courseActive = ['zhangyu', 'wangdao'];
+  if (!state.courseDeadline) state.courseDeadline = { zhangyu: '2026-09-24', wangdao: '2026-09-24' };
+  if (!state.planFiles) state.planFiles = [];
+  if (!state._seededPlanFilesV1) {
+    // 首次进入：放进三份规划资料占位（用户可随时删改/替换成自己的文件）
+    state.planFiles = [
+      { id: 'pf1', name: '数学二(302)考试大纲与范围', url: '', note: '教育部公布的数二考点范围，复习对照用' },
+      { id: 'pf2', name: '408统考考试大纲(数据结构/计组/OS/计网)', url: '', note: '官方统考大纲' },
+      { id: 'pf3', name: '全年周计划汇总(勾划安排 W1–W20)', url: '', note: '各科每周安排总表' }
+    ];
+    state._seededPlanFilesV1 = true;
+    saveState();
+  }
   if (!state.weeklyReview) state.weeklyReview = {};
   if (!state.mockSets) state.mockSets = { math: 0, cs408: 0 };
   if (!state.deficits) state.deficits = { weekly: {}, daily: {}, _wk: 0, _day: '' };
@@ -3024,7 +3049,7 @@ function downloadMemoIcs(id) {
   a.href = url; a.download = 'headup-提醒-' + (m.text || 'memo') + '.ics';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  toast('已生成日历文件，下载后点开即可加入手机日历');
+  toast('已自动下载 .ics 日历文件，在「文件」里点开即可加入手机日历（系统限制：网页无法直接写入系统日历）');
 }
 function checkMemos() {
   if (!state.memos || !state.memos.length) return;
@@ -4166,6 +4191,45 @@ function drawLineChart(canvas, labels, values, color) {
   for (let i = 0; i < n; i += Math.max(1, Math.ceil(n/7))) ctx.fillText(labels[i], xAt(i), H - padBottom/2);
 }
 
+// ================= 规划资料（考研页底部，可增删） =================
+function renderPlanFilesHtml() {
+  const files = state.planFiles || [];
+  const rows = files.length ? files.map(f => `
+    <div class="word-row">
+      <div class="word-en">${escapeHtml(f.name)}</div>
+      <div class="word-cn">${f.note ? escapeHtml(f.note) : (f.url ? escapeHtml(f.url) : '规划资料')}</div>
+      ${f.url ? `<a class="task-link-open" href="${escapeAttr(f.url)}" style="font-size:12px">🔗 打开</a>` : ''}
+      <div class="word-del" onclick="deletePlanFile('${f.id}')" title="删除">×</div>
+    </div>`).join('') : '<div class="empty">还没有规划资料，下面添加。</div>';
+  return `<div class="card">
+    <div class="card-title">🗂️ 规划资料</div>
+    <div class="card-sub">放你的复习大纲、计划表、资料链接等，可随时增删。</div>
+    ${rows}
+    <div class="form-row" style="margin-top:8px"><input class="input" id="plan-file-name" placeholder="资料名称，如：数二考试大纲"></div>
+    <div class="form-row"><input class="input" id="plan-file-url" placeholder="链接（可留空）"></div>
+    <div class="form-row"><input class="input" id="plan-file-note" placeholder="备注（可留空）"></div>
+    <button class="btn btn-small btn-primary" onclick="addPlanFile()">＋ 添加资料</button>
+  </div>`;
+}
+function addPlanFile() {
+  const n = document.getElementById('plan-file-name');
+  const u = document.getElementById('plan-file-url');
+  const note = document.getElementById('plan-file-note');
+  if (!n) return;
+  const name = (n.value || '').trim();
+  if (!name) { toast('请填写资料名称'); return; }
+  if (!state.planFiles) state.planFiles = [];
+  state.planFiles.push({ id: 'pf' + Date.now().toString(36) + Math.random().toString(36).slice(2,4), name, url: (u.value || '').trim(), note: (note.value || '').trim() });
+  saveState(); schedulePush();
+  if (state.view === 'exam') renderExam();
+  toast('已添加规划资料');
+}
+function deletePlanFile(id) {
+  state.planFiles = (state.planFiles || []).filter(x => x.id !== id);
+  saveState(); schedulePush();
+  if (state.view === 'exam') renderExam();
+}
+
 // ================= Exam Overview =================
 function renderExamOverview() {
   const el = document.getElementById('exam-overview');
@@ -4359,7 +4423,7 @@ function renderExamOverview() {
       <canvas id="exam-trend" class="chart"></canvas>
       <div class="legend"><span class="lg-study">学习分钟</span></div>
     </div>
-    <button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="openWeeklyReview()">📝 本周复盘（周日花10分钟总结）</button>` + renderMockPlanHtml() + renderMockSetHtml() + stagesHtml;
+    <button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="openWeeklyReview()">📝 本周复盘（周日花10分钟总结）</button>` + renderMockPlanHtml() + renderMockSetHtml() + stagesHtml + renderPlanFilesHtml();
   drawExamTrend();
 }
 function weekAgoDate() { const d = new Date(); d.setDate(d.getDate() - 6); d.setHours(0,0,0,0); return d; }
@@ -4369,56 +4433,94 @@ function weekNumOf(dateStr) {
   return Math.floor((d - start) / (7 * 86400000)) + 1;
 }
 function renderCourseTrackerHtml() {
+  if (!state.courseActive) state.courseActive = ['zhangyu', 'wangdao'];
   const st = getPlanStatus();
-  const rows = Object.keys(PLAN.courses).map(key => {
+  const rows = state.courseActive.map(key => {
     const c = PLAN.courses[key];
+    if (!c) return '';
     const done = (state.courses && state.courses[key]) || 0;
-    const pct = Math.min(100, Math.round(done / c.total * 100));
-    // 进度判断：右侧状态与底部预测统一用「当前实际节奏能否在截止周前完成」，避免文案自相矛盾
-    const remaining = Math.max(0, c.total - done);
-    const targetWeek = weekNumOf(c.deadline);
+    const total = c.total;
+    const pct = Math.min(100, Math.round(done / total * 100));
+    const remaining = Math.max(0, total - done);
+    const hasDl = !!(state.courseDeadline && state.courseDeadline[key]);
+    const targetWeek = hasDl ? weekNumOf(state.courseDeadline[key]) : 0;
     const weeksElapsed = Math.max(0, st.daysSinceStart / 7);
     const donePerWeek = weeksElapsed > 0 ? done / weeksElapsed : (done > 0 ? done / 0.1 : 0);
     const weeksNeedActual = donePerWeek > 0 ? remaining / donePerWeek : 999;
     const predFinishWeek = donePerWeek > 0 ? Math.min(20, Math.ceil(st.weekNum + weeksNeedActual)) : 20;
-    const onTrack = predFinishWeek <= targetWeek;
-    const statusCls = onTrack ? 'status-good' : 'status-bad';
-    const statusTxt = onTrack ? '进度正常 ✓' : '进度偏慢 ⚠️';
-    const predOk = onTrack;
-    const predTxt = `按当前节奏约第 ${predFinishWeek} 周完成（9月底前${predOk ? '✓' : '⚠️ 偏慢'}）`;
+    const onTrack = hasDl ? (predFinishWeek <= targetWeek) : false;
+    const statusCls = !hasDl ? '' : (onTrack ? 'status-good' : 'status-bad');
+    const statusTxt = !hasDl ? '待填结束日期' : (onTrack ? '进度正常 ✓' : '进度偏慢 ⚠️');
+    const predColor = !hasDl ? 'var(--text-secondary)' : (onTrack ? 'var(--text-secondary)' : '#e74c3c');
+    const predTxt = hasDl ? `按当前节奏约第 ${predFinishWeek} 周完成（截止周前${onTrack ? '✓' : '⚠️ 偏慢'}）` : '填上结束日期后自动评估节奏';
+    const dl = (state.courseDeadline && state.courseDeadline[key]) || '';
+    // 看完自动加入下一门（用户还没加时才显示手动按钮作为兜底）
+    const seq = PLAN.courseSeq[c.subj] || [];
+    const idx = seq.indexOf(key);
+    const nextKey = (idx >= 0 && idx < seq.length - 1) ? seq[idx + 1] : null;
+    const nextBtn = (done >= total && nextKey && state.courseActive.indexOf(nextKey) < 0)
+      ? `<div style="margin-top:6px"><button class="btn btn-small btn-primary" onclick="advanceCourseNow('${key}')">➕ 加入下一门：${PLAN.courses[nextKey].name}</button></div>` : '';
     return `<div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-weight:600">${c.name}</span>
         <span class="${statusCls}" style="font-size:12px">${statusTxt}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px">
-        <span>${done} / ${c.total} 节 · 剩 ${remaining} 节</span>
+        <span>${done} / ${total} 节 · 剩 ${remaining} 节</span>
         <span style="color:var(--text-secondary)">${pct}%</span>
       </div>
       <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${c.note}</div>
-      <div style="font-size:12px;margin-top:3px;color:${predOk ? 'var(--text-secondary)' : '#e74c3c'}">${predTxt}</div>
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <button class="btn btn-small btn-secondary" onclick="addCourse('${key}',-1)">−1节</button>
-        <button class="btn btn-small btn-primary" onclick="addCourse('${key}',1)">+1节</button>
-        <button class="btn btn-small btn-secondary" onclick="addCourse('${key}',5)">+5节</button>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${c.note || ''}</div>
+      <div style="font-size:12px;margin-top:3px;color:${predColor}">${predTxt}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <button class="btn btn-small btn-secondary" onclick="bumpCourse('${key}',-1)">−1节</button>
+        <button class="btn btn-small btn-primary" onclick="bumpCourse('${key}',1)">+1节</button>
+        <button class="btn btn-small btn-secondary" onclick="bumpCourse('${key}',5)">+5节</button>
+        <label style="font-size:12px;color:var(--text-secondary)">结束 <input type="date" class="input" style="width:auto;display:inline-block;padding:2px 4px;font-size:12px" value="${dl}" onchange="setCourseDeadline('${key}', this.value)"></label>
       </div>
+      ${nextBtn}
     </div>`;
   }).join('');
   return `<div class="card">
     <div class="card-title">📺 看课进度</div>
-    <div class="card-sub">看完一节就 +1，自动对比计划节奏（9月底前第一轮）</div>
+    <div class="card-sub">看完一节就 +1；一门看完会自动加入该科目下一门（结束日期自己填）。</div>
     ${rows}
   </div>`;
 }
+// 课程进度 +1/−1/+5：跨过满进度时自动加入该科目下一门课程
 function bumpCourse(key, delta) {
   if (!state.courses) state.courses = { zhangyu: 15, wangdao: 8 };
   const total = PLAN.courses[key].total;
-  state.courses[key] = Math.max(0, Math.min(total, (state.courses[key] || 0) + delta));
+  const before = state.courses[key] || 0;
+  const after = Math.max(0, Math.min(total, before + delta));
+  state.courses[key] = after;
   saveState(); schedulePush();
+  if (before < total && after >= total) maybeAdvanceCourse(key);
   if (state.view === 'exam') renderExam();
 }
 function addCourse(key, delta) { bumpCourse(key, delta); }
+// 上一门看完 → 自动把该科目序列里的下一门加入追踪
+function maybeAdvanceCourse(key) {
+  const c = PLAN.courses[key]; if (!c) return;
+  const seq = PLAN.courseSeq[c.subj] || [];
+  const idx = seq.indexOf(key);
+  if (idx < 0 || idx >= seq.length - 1) return; // 已是该科目最后一门
+  const nextKey = seq[idx + 1];
+  if (!state.courseActive) state.courseActive = ['zhangyu', 'wangdao'];
+  if (state.courseActive.indexOf(nextKey) >= 0) return; // 已加入
+  state.courseActive.push(nextKey);
+  if (!state.courseDeadline) state.courseDeadline = {};
+  if (!state.courseDeadline[nextKey]) state.courseDeadline[nextKey] = '';
+  if (state.courses[nextKey] === undefined) state.courses[nextKey] = 0;
+  toast('🎉「' + c.name + '」已完成，已自动加入下一门：' + PLAN.courses[nextKey].name);
+}
+function advanceCourseNow(key) { maybeAdvanceCourse(key); if (state.view === 'exam') renderExam(); }
+function setCourseDeadline(key, val) {
+  if (!state.courseDeadline) state.courseDeadline = {};
+  state.courseDeadline[key] = val || '';
+  saveState(); schedulePush();
+  if (state.view === 'exam') renderExam();
+}
 function renderMockSetHtml() {
   const totals = { math: 16, cs408: 11 };
   const rows = [['math','📐 数学二真题','2010–2025'],['cs408','💻 408真题','2013–2023']].map(([k,n,yr]) => {
