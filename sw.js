@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lamb-workbench-v6';
+const CACHE_NAME = 'lamb-workbench-v7';
 // 相对路径:兼容 GitHub Pages 子路径(/headup/)与 Vercel 根路径部署
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 

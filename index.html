@@ -2755,6 +2755,8 @@ function renderLifeCalendarDetail() {
   const recs = state.lifeRecords.filter(r => r.date === lifeSelectedDate);
   let html = `<div class="card-sub">${lifeSelectedDate} 共 ${recs.length} 项</div>`;
   html += `<div class="form-row" style="margin-top:8px"><input class="input" id="life-event-name" placeholder="添加当天事项名称"></div><button class="btn btn-small btn-primary" onclick="addLifeEvent()">添加事项</button>`;
+  html += `<div style="margin-top:8px"><button class="btn btn-small btn-secondary" onclick="downloadIcs('${lifeSelectedDate}')">📅 导出当天到日历(.ics)</button></div>`;
+  if (!recs.length) html += '<div class="card-sub" style="margin-top:6px">点击上方日期会即时导出该天日历文件；当天无记录则不导出。</div>';
   if (recs.length) {
     html += recs.map(r => `<div class="word-row"><div class="word-en">${escapeHtml(r.name)}</div><div class="word-cn">${r.durationText || '手动添加'}</div><div class="word-del" onclick="deleteLifeRecord('${r.id}')">×</div></div>`).join('');
   } else {
@@ -2768,7 +2770,7 @@ function lifeChangeMonth(d) {
   if (lifeCalMonth > 11) { lifeCalMonth = 0; lifeCalYear++; }
   renderLifeCalendar();
 }
-function lifeSelectDate(ds) { lifeSelectedDate = ds; renderLifeCalendar(); }
+function lifeSelectDate(ds) { lifeSelectedDate = ds; renderLifeCalendar(); autoExportIcs(ds); }
 function addLifeEvent() {
   const el = document.getElementById('life-event-name');
   const name = el.value.trim();
@@ -2810,6 +2812,44 @@ function deleteStudySession(id) {
   renderStudyStats();
   renderHobbies();
   toast('已删除该条记录，相关统计已同步更新');
+}
+
+// ================= 导出当日到系统日历（.ics） =================
+function icsEsc(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); }
+// 把某一天的番茄钟记录导出成 .ics 文件并触发下载（手机打开即可「添加到日历」）
+function downloadIcs(ds) {
+  const recs = state.lifeRecords.filter(r => r.date === ds);
+  if (!recs.length) { toast('当天暂无番茄记录，无法导出到日历'); return; }
+  let cursor = new Date(ds + 'T09:00:00'); // 从 09:00 起把当天记录顺序排开
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//headup//study-plan//CN', 'CALSCALE:GREGORIAN'];
+  recs.forEach((r, i) => {
+    const dur = r.durationMin || 30;
+    const start = new Date(cursor);
+    const end = new Date(cursor.getTime() + dur * 60000);
+    const f = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    L.push(
+      'BEGIN:VEVENT',
+      'UID:' + (r.id || ('h' + i)) + '@headup',
+      'DTSTART:' + f(start),
+      'DTEND:' + f(end),
+      'SUMMARY:' + icsEsc(r.name || '学习'),
+      'DESCRIPTION:' + icsEsc(r.durationText || (dur + '分钟')),
+      'END:VEVENT'
+    );
+    cursor = end;
+  });
+  L.push('END:VCALENDAR');
+  const blob = new Blob([L.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'headup-' + ds + '.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  toast('已生成 ' + ds + ' 的日历文件，打开即可添加到系统日历 📅');
+}
+// 点击某天自动导出（仅当天有记录时才下载，避免空天刷屏）
+function autoExportIcs(ds) {
+  if (state.lifeRecords.some(r => r.date === ds)) downloadIcs(ds);
 }
 
 function addNote() {
@@ -4726,7 +4766,7 @@ function init() {
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js?v=6').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=7').catch(() => {});
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'NEW_VERSION') showUpdateBanner();
       if (e.data && e.data.type === 'STOP_ALARM') { stopAlarm(); dismissMemoAlarm(); }
