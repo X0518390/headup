@@ -865,6 +865,25 @@ const defaultTasks = [
   { id: 't5', text: '算法手写1道', done: false },
   { id: 't6', text: '睡前单词 15分', done: false }
 ];
+// 旧版自动生成任务的长文案 -> 现短文案（仅用于存量任务一次性规范化，用户自定义内容不会被命中）
+const OLD_TASK_MAP = {
+  '背单词 新词40 + 复习旧词': '背单词 新40+复习',
+  '张宇基础30讲 看课 1.5–2 节': '张宇30讲 看课2节',
+  '王道数据结构 看课 1.5–2 节': '王道 看课2节',
+  '数据结构选择 + 算法手写 1 道': '算法手写1道',
+  '高数课后题 / 张宇1000题': '高数/张宇1000题',
+  '睡前单词复习 15 分钟': '睡前单词 15分',
+  '张宇看课 3 节': '张宇 看课3节',
+  '王道看课 3 节': '王道 看课3节',
+  '英语：阅读2篇 + 单词复习': '英语 阅读2+单词',
+  '政治：肖1000题 1 章': '政治 肖1000 1章',
+  '错题复盘 2 小时': '错题复盘 2h',
+};
+function normalizeTaskText(t) {
+  if (!t) return t;
+  let s = String(t).replace(/（推进第\d+周）|（上午）|（下午）/g, '').replace(/\s{2,}/g, ' ').trim();
+  return OLD_TASK_MAP[s] || s;
+}
 
 const defaultHobbies = [
   { id: 'h1', name: '化妆', icon: '💄', categories: ['底妆','眼妆','唇妆','美妆','修容高光','全妆'] },
@@ -1072,6 +1091,13 @@ let hobbyBypass = false;
 
 function ensureState() {
   if (!state.tasks || !state.tasks.length) state.tasks = JSON.parse(JSON.stringify(defaultTasks));
+  // 存量今日任务规范化：去掉旧版自动生成的括号噪声（推进第N周/上午/下午），并把旧长文案映射为新短文案。仅命中旧自动生成格式，用户自定义内容不变。
+  if (!state._tasksNormalizedV2) {
+    (state.tasks || []).forEach(t => { if (t && t.text) t.text = normalizeTaskText(t.text); });
+    if (state.dailyHistory) Object.values(state.dailyHistory).forEach(arr => (arr || []).forEach(h => { if (h && h.text) h.text = normalizeTaskText(h.text); }));
+    state._tasksNormalizedV2 = true;
+    saveState();
+  }
   if (!state.hobbies || !state.hobbies.length) state.hobbies = JSON.parse(JSON.stringify(defaultHobbies));
   if (!state.hobbyItems) state.hobbyItems = [];
   // 一次性补全资源汇总表（按链接去重，已存在的不会重复添加）
@@ -3071,8 +3097,16 @@ function downloadMemoIcs(id) {
   ].filter(Boolean);
   const ics = lines.join('\r\n');
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-  const file = new File([ics], 'headup-提醒-' + (m.text || 'memo') + '.ics', { type: 'text/calendar' });
-  // 1) 优先用系统分享面板：iOS/Android 可在面板里选「添加到日历」
+  const file = new File([ics], 'headup-reminder.ics', { type: 'text/calendar' });
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    // 移动端：用 data: URI 直接唤起系统「添加到日历」，避开分享/下载权限报错（blob: 导航在 iOS 会“无法下载文件”，navigator.share 文件在 iOS 会“没有下载权限”）
+    const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    window.location.href = dataUri;
+    toast('已唤起系统日历，请选择「添加到日历」');
+    return;
+  }
+  // 桌面端：优先系统分享面板（可在面板里选「添加到日历」）
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     navigator.share({ files: [file], title: 'Head up 提醒', text: (m.text || '提醒') })
       .catch(() => fallbackIcs(blob));
