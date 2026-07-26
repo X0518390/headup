@@ -518,10 +518,6 @@
           <div class="card">
             <div class="card-title">今日任务</div>
             <div class="card-sub">完成一项打勾，进度一目了然（每天自动重置）</div>
-            <div style="display:flex;gap:8px;margin-bottom:10px">
-              <button class="btn btn-small btn-secondary" onclick="generateTodayPlan()">🤖 按规划生成今日任务</button>
-              <button class="btn btn-small btn-secondary" onclick="copyYesterdayTasks()">📋 复制昨天任务</button>
-            </div>
             <div id="daily-task-list"></div>
             <div class="form-row" style="margin-top:12px">
               <input class="input" id="new-task-input" placeholder="输入新任务...">
@@ -1148,6 +1144,11 @@ let selectedDate = todayStr();
 let hobbyBypass = false;
 
 function ensureState() {
+  // 一次性撤销：误触「按规划生成今日任务 / 复制昨天任务」生成的全是 gen* 前缀任务，移除它们；手动(FAB)任务前缀已改为 man*，不受影响，种子任务 t1..t6 也不受影响
+  if (!state._removedGenTasksV1) {
+    if (state.tasks && state.tasks.length) state.tasks = state.tasks.filter(t => !(t.id && typeof t.id === 'string' && t.id.indexOf('gen') === 0));
+    state._removedGenTasksV1 = true; saveState();
+  }
   if (!state.tasks || !state.tasks.length) state.tasks = JSON.parse(JSON.stringify(defaultTasks));
   // 存量今日任务规范化：去掉旧版自动生成的括号噪声（推进第N周/上午/下午），并把旧长文案映射为新短文案。仅命中旧自动生成格式，用户自定义内容不变。
   if (!state._tasksNormalizedV2) {
@@ -1492,12 +1493,6 @@ function generateDailyTasks() {
     mk('睡前单词 15分', 15),
   ];
 }
-function generateTodayPlan() {
-  if (state.tasks.some(t => t.done) && !confirm('将用本周规划覆盖当前任务，确定吗？')) return;
-  state.tasks = generateDailyTasks();
-  state.lastTaskDate = todayStr();
-  updateDailySnapshot(); saveState(); schedulePush(); renderDaily();
-}
 function updateDailySnapshot() {
   state.dailyHistory[todayStr()] = state.tasks.map(t => ({ text: t.text, done: !!t.done, link: t.link || '' }));
 }
@@ -1505,21 +1500,6 @@ function updateDailySnapshot() {
 function histTasks(ds) {
   const arr = state.dailyHistory[ds] || [];
   return arr.map(t => (typeof t === 'string' ? { text: t, done: true, link: '' } : { text: t.text, done: !!t.done, link: t.link || '' }));
-}
-function copyYesterdayTasks() {
-  const y = new Date(Date.now() - 86400000);
-  const ys = dateStr(y);
-  const src = histTasks(ys);
-  if (!src.length) { toast('昨天没有任务可复制'); return; }
-  const exist = new Set(state.tasks.map(t => t.text));
-  let added = 0;
-  src.forEach(t => {
-    if (exist.has(t.text)) return; // 避免重复
-    state.tasks.push({ id: 'gen' + Date.now().toString() + Math.random().toString(36).slice(2,6), text: t.text, done: false, target: 0, logged: 0, link: t.link || '' });
-    added++;
-  });
-  saveState(); schedulePush(); renderDaily();
-  toast(added ? `已复制昨天 ${added} 条任务（未完成）` : '昨天的任务今天都已有');
 }
 function renderDaily() {
   const list = document.getElementById('daily-task-list');
@@ -5126,7 +5106,7 @@ function fabAddTask() {
   setView('daily');
   const text = prompt('今日任务内容：');
   if (!text || !text.trim()) return;
-  state.tasks.push({ id: 'gen' + Date.now().toString(), text: text.trim(), done: false });
+  state.tasks.push({ id: 'man' + Date.now().toString(), text: text.trim(), done: false });
   saveState(); schedulePush(); renderDaily();
   toast('已添加任务');
 }
