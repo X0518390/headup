@@ -1474,7 +1474,20 @@ function checkNewDay() {
     });
     state.tasks = planned;
   }
+  // 跨天：生活页默认回到今天，避免番茄钟汇总仍停在昨天（“昨天学的没重置”）
+  if (typeof lifeSelectedDate !== 'undefined' && lifeSelectedDate !== today) lifeSelectedDate = today;
   updateDailySnapshot();
+}
+// 跨天守护：即使 PWA 未重新加载（后台挂起后恢复 / 跨零点仍开着），也按时触发“新的一天”
+let _lastSeenDate = todayStr();
+function tickDayGuard() {
+  const t = todayStr();
+  if (t === _lastSeenDate) return;
+  _lastSeenDate = t;
+  const prev = state.lastTaskDate;
+  checkNewDay();
+  // 日期已变化：刷新当前视图，让“今日”相关展示（番茄钟汇总、目标进度等）归零重置
+  if (prev !== t) renderCurrentView();
 }
 // 归一化任务文本（去掉“推进第N周”等动态后缀），用于跨天按内容匹配链接
 function normTaskText(t) { return String(t).replace(/（推进第\d+周）/g, '').replace(/\s+/g, ' ').trim(); }
@@ -2738,7 +2751,7 @@ function startPomodoro() {
   const mins = getPomoMinutes();
   const name = document.getElementById('pomo-name').value.trim() || '未命名';
   const subject = document.getElementById('pomo-subject').value || (state.exam && state.exam.subject) || '';
-  state.pomo = { name, subject, totalSec: mins*60, endTime: Date.now() + mins*60000, taskId: pendingPomoTask || null };
+  state.pomo = { name, subject, totalSec: mins*60, endTime: Date.now() + mins*60000, taskId: pendingPomoTask || null, startDate: todayStr() };
   pendingPomoTask = null;
   saveState();
   pomoTimer = setInterval(tickPomo, 1000);
@@ -2750,7 +2763,7 @@ function startMakeupPomodoro(date) {
   const d = (typeof date === 'string') ? { date } : latestDailyDeficit();
   if (!d || !d.date) { toast('没有待补做的昨日欠账 🎉'); return; }
   const ds = d.date;
-  state.pomo = { name: '补做', subject: '', totalSec: 25 * 60, endTime: Date.now() + 25 * 60000, taskId: null, makeup: true, makeupDate: ds };
+  state.pomo = { name: '补做', subject: '', totalSec: 25 * 60, endTime: Date.now() + 25 * 60000, taskId: null, makeup: true, makeupDate: ds, startDate: todayStr() };
   saveState();
   pomoTimer = setInterval(tickPomo, 1000);
   renderPomoDisplay();
@@ -2772,8 +2785,9 @@ function finishPomodoro(early) {
   const realMin = Math.max(1, Math.round(realSec/60));
   const taskId = state.pomo.taskId;
   const isMakeup = !!state.pomo.makeup;
-  // 补做：记录到「昨天」(makeupDate)，不计入今天任何数据；普通番茄钟记到今天
-  const recDate = isMakeup ? (state.pomo.makeupDate || todayStr()) : todayStr();
+  // 补做：记录到「昨天」(makeupDate)，不计入今天任何数据；普通番茄钟记到「开始当天」
+  // （若昨晚开始、跨过零点才结束，应算作昨天而非今天，避免“昨天学的却出现在今日”）
+  const recDate = isMakeup ? (state.pomo.makeupDate || todayStr()) : (state.pomo.startDate || todayStr());
   state.lifeRecords.push({ id: Date.now().toString(), date: recDate, name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin), src: 'pomo' });
   if (state.pomo.subject || isMakeup) {
     state.studyRecords.push({ id: Date.now().toString(), date: recDate, subject: state.pomo.subject || '', minutes: realMin, late: isMakeup ? false : isAfterBedtime(), taskId: taskId || null, src: 'pomo', makeup: isMakeup });
@@ -5207,8 +5221,11 @@ function init() {
   recoverPomo();
   resumeRewardTimer();
   initSync();
-  setInterval(checkBedtimeNotif, 60000);
+  setInterval(() => { checkBedtimeNotif(); tickDayGuard(); }, 60000);
   checkBedtimeNotif();
+  tickDayGuard();
+  // PWA 从后台恢复时立即检查跨天（不依赖整页刷新）
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tickDayGuard(); });
   setInterval(checkMemos, 15000);
   checkMemos();
   // 首次用户手势解锁音频，便于到点响铃（iOS 要求用户交互后才能播放声音）
