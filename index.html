@@ -1366,7 +1366,9 @@ async function pullSync() {
       state = obj.data; ensureState(); syncTs = obj.ts; saveState();
       // 拉取云端后强制按固定三项任务（保留已记录进度），避免云端旧六条覆盖回六项
       checkNewDay();
-      restoreZhangYuFloor();
+      // 仅在「张宇进度补齐」从未执行过时，把云端里的张宇进度补到至少 115 分钟（一次性）；
+      // 之后再不干预，让 checkNewDay 在跨天时正常重置三项任务进度（否则会每天都被这层补齐"卡"在 115 分钟）
+      restoreZhangYuProgressOnce();
       saveState(); renderCurrentView();
     }
     updateSyncUI('已同步', 'ok');
@@ -1497,11 +1499,6 @@ function restoreZhangYuProgressOnce() {
   if (z && (z.logged || 0) < 115) z.logged = 115;
   state._restoredZhangYuV1 = true;
   saveState();
-}
-// 拉取云端合并后，确保「张宇基础30讲」进度不低于 115 分钟（仅向上补齐，不覆盖已记录的更多时长）
-function restoreZhangYuFloor() {
-  const z = (state.tasks || []).find(t => /张宇|30讲/.test(t.text));
-  if (z && (z.logged || 0) < 115) z.logged = 115;
 }
 // 兼容旧数据（历史里存的是字符串），统一返回 {text, done, link}
 function histTasks(ds) {
