@@ -2781,7 +2781,8 @@ function finishPomodoro(early) {
   // 补做：记录到「昨天」(makeupDate)，不计入今天任何数据；普通番茄钟记到「开始当天」
   // （若昨晚开始、跨过零点才结束，应算作昨天而非今天，避免“昨天学的却出现在今日”）
   const recDate = isMakeup ? (state.pomo.makeupDate || todayStr()) : (state.pomo.startDate || todayStr());
-  state.lifeRecords.push({ id: Date.now().toString(), date: recDate, name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin), src: 'pomo' });
+  // 仅「完整结束」的番茄钟才计入兴趣银行（+5/个）；中途暂停/提前截止不计入（不推 pomo 记录，recomputeBank 按 pomo 条数推导）
+  if (!early) state.lifeRecords.push({ id: Date.now().toString(), date: recDate, name: state.pomo.name, durationMin: realMin, durationText: fmtMin(realMin), src: 'pomo' });
   if (state.pomo.subject || isMakeup) {
     state.studyRecords.push({ id: Date.now().toString(), date: recDate, subject: state.pomo.subject || '', minutes: realMin, late: isMakeup ? false : isAfterBedtime(), taskId: taskId || null, src: 'pomo', makeup: isMakeup });
   }
@@ -2814,7 +2815,7 @@ function finishPomodoro(early) {
   if (state.view === 'daily') renderDaily();
   renderLife();
   if (state.view === 'dashboard' || isMakeup) renderDashboard();
-  toast(isMakeup ? `补做完成 ${fmtMin(realMin)}，已计入 ${recDate} 的学习时长 💪` : `番茄钟完成！兴趣银行 +${BANK_PER_POMO} 分钟（共 ${state.hobbyBank} 分）`);
+  toast(isMakeup ? `补做完成 ${fmtMin(realMin)}，已计入 ${recDate} 的学习时长 💪` : (early ? `已提前结束，本次未计入爱好银行（需完整完成一个番茄钟才 +${BANK_PER_POMO}）` : `番茄钟完成！兴趣银行 +${BANK_PER_POMO} 分钟（共 ${state.hobbyBank} 分）`));
 }
 function earlyStop() { if (state.pomo) finishPomodoro(true); }
 function updatePomoRing(remain, total) {
