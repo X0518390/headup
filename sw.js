@@ -1,27 +1,22 @@
-const CACHE_NAME = 'lamb-workbench-v15';
-// 不缓存 index.html。HTML 每次导航都用 cache-busting 从网络拉最新，
-// 避免把陈旧 HTML 存进 Cache Storage 导致一直显示旧版（六项默认任务）。
+const CACHE_NAME = 'lamb-workbench-v16';
+// 只缓存图标/manifest 等静态资源，绝不缓存 index.html。
+// 导航请求一律交给浏览器正常走 CDN，SW 不再拦截 —— 这样 SW 永远不会成为
+// "页面打不开" 的原因（避免旧版 no-store 请求失败时无兜底导致白屏死锁）。
 const ASSETS = ['./manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).catch(() => {}));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    // 清掉所有旧缓存，确保旧版 HTML 不会残留
+    // 清掉所有旧缓存，确保旧版 HTML/资源不会残留
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
-    // 必须先 claim，让本 SW 接管所有页面，之后的刷新才由本 SW 处理（用 cache-busting 拉最新 HTML）
     await self.clients.claim();
-    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    clients.forEach(c => {
-      try { c.postMessage({ type: 'NEW_VERSION' }); } catch (e) {}
-      // 强制刷新到带时间戳的新 URL：本 SW 接管后用 cache-busting 拉到最新 HTML，避免闪回旧版
-      try { c.navigate((c.url || '').split('?')[0] + '?swreload=' + Date.now()); }
-      catch (e) { try { c.reload(); } catch (e2) {} }
-    });
+    // 注意：不再对页面做 c.navigate('?swreload=...') 强制跳转，
+    // 避免在某些浏览器上造成重复导航/卡死。页面由浏览器正常加载最新 HTML。
   })());
 });
 
@@ -83,14 +78,9 @@ self.addEventListener('fetch', event => {
     }
   } catch (e) {}
 
-  // Navigation: 完全 no-store + 追加唯一时间戳查询，强制 CDN 边缘 cache miss，
-  // 保证每次导航都从 GitHub Pages 源站拉到最新 HTML（解决 CDN 缓存旧版导致一直看不到新代码的问题）
-  if (event.request.mode === 'navigate') {
-    const url = new URL(event.request.url);
-    const freshUrl = url.pathname + '?t=' + Date.now();
-    event.respondWith(fetch(freshUrl, { cache: 'no-store' }));
-    return;
-  }
+  // 导航请求（打开页面）：不做任何拦截，交给浏览器正常从 CDN 拉取。
+  // 绝不 respondWith / fetch，避免 SW 成为页面打不开的单点故障。
+  if (event.request.mode === 'navigate') return;
 
   // 其它静态资源：网络优先，离线时回退缓存
   event.respondWith(

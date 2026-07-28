@@ -474,6 +474,25 @@
   </style>
 </head>
 <body>
+  <!-- 全局错误浮层：任何 JS 报错都可见（不再白屏），方便定位 -->
+  <div id="errBanner" style="display:none;position:fixed;left:0;right:0;top:0;z-index:99999;background:#b00020;color:#fff;font:13px/1.5 -apple-system,system-ui,sans-serif;padding:10px 14px;white-space:pre-wrap;box-shadow:0 2px 8px rgba(0,0,0,.3)"></div>
+  <script>
+    (function(){
+      function showErr(msg){
+        var b=document.getElementById('errBanner');
+        if(!b) return;
+        b.style.display='block';
+        b.textContent='⚠ 页面脚本报错（请截图发给开发者）：\n'+msg;
+      }
+      window.addEventListener('error', function(e){
+        var m = e && e.message ? (e.message + (e.filename?('\n@ '+e.filename+':'+e.lineno):'')) : String(e);
+        showErr(m);
+      });
+      window.addEventListener('unhandledrejection', function(e){
+        showErr('Promise 未处理: ' + (e && e.reason ? (e.reason.stack||e.reason.message||e.reason) : e));
+      });
+    })();
+  </script>
   <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
   <aside class="sidebar" id="sidebar">
     <div class="brand"><span class="brand-logo">H</span>Head up</div>
