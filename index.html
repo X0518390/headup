@@ -910,6 +910,31 @@
   </div>
 
 <script>
+// ================= Self-reset (一键解套卡死的 Service Worker) =================
+// 用 hash 触发（不用 query）：sw.js 的 fetch handler 会对所有 navigate 重写成 ?t=<时间戳>
+// 并 strip 查询参数，但 hash 不会发到服务端，且 location.hash 会保留 —— 所以页面脚本
+// 一定能读到 #swreset。完整逻辑见下：当 location.hash === '#swreset' 时：
+//   1. 注销所有 Service Worker（解除 SW 对新页面的拦截）
+//   2. 清空所有 Cache Storage（防止旧版 HTML 残留）
+//   3. location.replace 跳到干净 URL（不带 hash）让浏览器重新加载，无 SW 介入
+// 关键：不动 localStorage —— 云同步的 token / 房间 111 / 爱好银行 / 错题背诵 等全部保留。
+if (location.hash === '#swreset') {
+  (async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch (e) {}
+    location.replace(location.pathname);
+  })();
+  throw new Error('RESETTING_ServiceWorker');
+}
+
 // ================= Data & State =================
 const defaultTasks = [
   { id: 't1', text: '背单词 新40+复习', done: false },
