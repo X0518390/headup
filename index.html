@@ -1180,7 +1180,12 @@ let state = {
 
 const storageKey = 'lamb-workbench-v2';
 let syncRoom = '';
+// syncTs 持久化：页面重载后从 localStorage 恢复，避免「重载后第一次拉取」用较旧的云端状态
+// 整体覆盖本地、抹掉刚完成但未推上云的番茄钟/记录（之前恒为 0，导致每次刷新必被云端覆盖）。
+const SYNC_TS_KEY = 'headup-sync-ts';
 let syncTs = 0;
+(function(){ try { const v = parseInt(localStorage.getItem(SYNC_TS_KEY) || '0', 10); if (v > 0) syncTs = v; } catch(e){} })();
+function setSyncTs(v) { syncTs = v; try { localStorage.setItem(SYNC_TS_KEY, String(v)); } catch(e){} }
 let pushTimer = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
@@ -1326,7 +1331,15 @@ function loadState() {
   if (raw) { try { state = { ...state, ...JSON.parse(raw) }; } catch(e) {} }
   ensureState();
 }
-function saveState() { localStorage.setItem(storageKey, JSON.stringify(state)); }
+// 正在应用「云端拉取的数据」时为 true，此期间 saveState 不应把 syncTs 刷新为现在（否则会
+// 让「云端比本地旧」的判断失效）。拉取结束恢复。
+let _applyingRemote = false;
+function saveState() {
+  localStorage.setItem(storageKey, JSON.stringify(state));
+  // 本地任何改动都刷新 syncTs=现在并持久化：保证「云端时间戳 > 本地最后改动」才覆盖本地，
+  // 从而重载后第一次拉取不会用较旧云端抹掉刚完成但未推上云的番茄钟/记录。
+  if (!_applyingRemote) setSyncTs(Date.now());
+}
 let _toastTimer = null;
 function toast(msg) {
   let t = document.getElementById('toast');
@@ -1363,7 +1376,7 @@ async function pushSync() {
   if (!navigator.onLine) { _syncOffline = true; updateSyncUI('离线·已存本地', 'off'); return; }
   updateSyncUI('同步中…', 'sync');
   const ts = Date.now();
-  if (ts > syncTs) syncTs = ts;
+  if (ts > syncTs) setSyncTs(ts);
   const payload = b64encodeUnicode(JSON.stringify({ ts, data: state }));
   const filePath = 'sync/' + syncRoomSafe() + '.json';
   try {
@@ -1407,10 +1420,19 @@ async function pullSync() {
     _syncSha = data.sha;
     const obj = JSON.parse(b64decodeUnicode(data.content));
     if (obj.data && obj.ts > syncTs) {
-      state = obj.data; ensureState(); syncTs = obj.ts; saveState();
-      // 拉取云端后强制按固定三项任务（保留已记录进度），避免云端旧六条覆盖回六项
-      checkNewDay();
-      saveState(); renderCurrentView();
+      _applyingRemote = true;
+      try {
+        // 先记住本地「正在倒计时」的番茄钟（重载/同步瞬间最容易丢的就是它）
+        const runningPomo = (state.pomo && state.pomo.endTime > Date.now()) ? state.pomo : null;
+        state = obj.data; ensureState(); setSyncTs(obj.ts); saveState();
+        // 保活：若本地原本有进行中的番茄钟而云端没有，保留它，避免同步把"正在倒计时"的番茄钟冲掉
+        if (runningPomo && (!state.pomo || state.pomo.endTime <= Date.now())) {
+          state.pomo = runningPomo; saveState();
+        }
+        // 拉取云端后强制按固定三项任务（保留已记录进度），避免云端旧六条覆盖回六项
+        checkNewDay();
+        saveState(); renderCurrentView();
+      } finally { _applyingRemote = false; }
     }
     updateSyncUI('已同步', 'ok');
     _syncFailCount = 0; _syncOffline = false;
