@@ -382,7 +382,7 @@
     .bar-fill { height: 100%; background: var(--primary); border-radius: 8px; transition: width .4s; }
 
     /* 达标天数环形进度 */
-    .ring-wrap { display: flex; align-items: center; gap: 14px; }
+    .ring-wrap { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
     .ring { width: 66px; height: 66px; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center;
       background: conic-gradient(var(--primary) calc(var(--p, 0) * 1%), #ececf0 0); font-weight: 700; font-size: 15px; flex-shrink: 0; }
     .ring::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: var(--card); }
@@ -631,8 +631,10 @@
           <div class="card-title">⏰ 早睡早起打卡</div>
           <div class="habit-actions">
             <button class="btn btn-secondary" onclick="recordSleep()">🌙 我睡觉了</button>
+            <input type="time" id="wake-input" class="input" style="max-width:120px" value="${state.settings.wakeTime || '07:30'}">
             <button class="btn btn-primary" onclick="recordWake()">☀️ 我起床了</button>
           </div>
+          <div class="card-sub" style="margin-top:6px">起床时间可手动改（默认 7:30，之后忘记打卡也能回填）</div>
           <div id="weather-card" class="weather-card hidden">
             <div id="weather-main" class="weather-main"></div>
             <div id="weather-detail" style="font-size:14px;opacity:.9"></div>
@@ -1126,8 +1128,8 @@ function mondayOf(date) {
   return d;
 }
 function mondayOfThisWeek() { return mondayOf(new Date()); }
-// 计划周锚点：取「实际开始日」所在周的周一，使计划周为 周一~周日
-function planWeekAnchor() { return mondayOf(PLAN.examStart + 'T00:00:00'); }
+// 计划周锚点：取「实际开始日」所在周的周一，再 +7 天，使「第1周」对齐到用户真正开始学习的那一周（7/27~8/2，周一~周日）
+function planWeekAnchor() { const d = mondayOf(PLAN.examStart + 'T00:00:00'); d.setDate(d.getDate() + 7); return d; }
 function getPlanStatus() {
   const today = new Date(); today.setHours(0,0,0,0);
   const start = new Date(PLAN.examStart + 'T00:00:00');   // 实际开始日：用于备考进度
@@ -1324,7 +1326,8 @@ function ensureState() {
   if (!state.settings.fontScale) state.settings.fontScale = '1';
   if (state.settings.highContrast === undefined) state.settings.highContrast = false;
   ['math','cs408','english','politics'].forEach(s => { if (!state.examStages[s]) state.examStages[s] = {}; });
-  if (!state.settings) state.settings = { examDate: '2026-12-19', bedTime: '23:30', studyGoal: 240, theme: 'auto', navOrder: ['daily','exam','life','hobbies','habits'] };
+  if (!state.settings) state.settings = { examDate: '2026-12-19', bedTime: '23:30', wakeTime: '07:30', studyGoal: 240, theme: 'auto', navOrder: ['daily','exam','life','hobbies','habits'] };
+  if (state.settings.wakeTime === undefined) state.settings.wakeTime = '07:30';
   if (!state.settings.navOrder) state.settings.navOrder = ['daily','exam','life','hobbies','habits'];
   // 迁移旧版：确保 5 个模块齐全
   ['daily','exam','life','hobbies','habits'].forEach(k => { if (!state.settings.navOrder.includes(k)) state.settings.navOrder.push(k); });
@@ -1414,7 +1417,7 @@ async function pushSync() {
     _syncFailCount++;
     const m = (e && e.message) || '';
     if (m.indexOf('401') >= 0 || m.indexOf('403') >= 0) updateSyncUI('推送失败：Token 无权限（请确认是同一 GitHub 账号，且勾选了 repo）', 'off');
-    else if (m.indexOf('422') >= 0) updateSyncUI('推送失败：文件过大 >1MB（减少收藏截图）', 'off');
+    else if (m.indexOf('422') >= 0) updateSyncUI('推送失败：state 仍过大（新增截图已自动改为独立仓库文件）', 'off');
     else if (m.indexOf('404') >= 0) updateSyncUI('推送失败：仓库或路径不存在', 'off');
     else updateSyncUI('离线·已存本地（推送失败）', 'off');
   }
@@ -1804,14 +1807,12 @@ function renderSubjectTab() {
     <div class="card-title">${isMistake ? '添加错题' : '添加知识点'}</div>
     <div class="form-row"><input class="input" id="exam-title" placeholder="简介 / 标题"></div>
     <div class="form-row"><textarea class="textarea" id="exam-desc" placeholder="描述 / 笔记"></textarea></div>
-    <div class="form-row"><input type="file" class="input" id="exam-img" accept="image/*"></div>
-    <label class="dropzone" id="exam-drop">📎 ${isMistake ? '把题目截图拖到这里自动添加' : '把知识点截图拖到这里自动添加'}</label>`;
-  if (isMistake) {
-    html += `<div class="form-row"><textarea class="textarea" id="exam-answer" placeholder="答案文字（可选）"></textarea></div>
-      <div class="form-row"><input type="file" class="input" id="exam-answer-img" accept="image/*"></div>
-      <label class="dropzone" id="exam-answer-drop">📎 把答案的截图上拖到这里自动上传</label>
-      <div class="form-row"><label><input type="checkbox" id="exam-hide" checked> 默认隐藏答案</label></div>`;
-  }
+    <div class="form-row"><input type="file" class="input" id="exam-img" accept="image/*,application/pdf"></div>
+    <label class="dropzone" id="exam-drop">📎 ${isMistake ? '把题目截图/PDF拖到这里自动添加' : '把知识点截图/PDF拖到这里自动添加'}</label>`;
+  html += `<div class="form-row"><textarea class="textarea" id="exam-answer" placeholder="答案 / 解析文字（可选，默认隐藏）"></textarea></div>
+    <div class="form-row"><input type="file" class="input" id="exam-answer-img" accept="image/*,application/pdf"></div>
+    <label class="dropzone" id="exam-answer-drop">📎 把答案截图/PDF拖到这里自动上传</label>
+    <div class="form-row"><label><input type="checkbox" id="exam-hide" checked> 默认隐藏答案</label></div>`;
   html += `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="addExamItem()">添加</button></div>`;
 
   if (items.length === 0) html += `<div class="empty">暂无内容，上方添加或拖入截图</div>`;
@@ -1852,24 +1853,42 @@ function addWord() {
   saveState(); schedulePush(); renderWordsList();
 }
 function deleteWord(id) { state.examData.english.words = state.examData.english.words.filter(x => x.id !== id); saveState(); schedulePush(); renderWordsList(); }
-function deleteRecite(sub, id) { state.recite[sub] = (state.recite[sub] || []).filter(x => x.id !== id); saveState(); schedulePush(); renderExam(); }
-function deleteMistake(sub, id) { state.examData[sub].mistake = (state.examData[sub].mistake || []).filter(x => x.id !== id); saveState(); schedulePush(); renderExam(); }
+function deleteRecite(sub, id) {
+  const removed = (state.recite[sub] || []).find(x => x.id === id);
+  state.recite[sub] = (state.recite[sub] || []).filter(x => x.id !== id);
+  saveState(); schedulePush(); renderExam();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
+}
+function deleteMistake(sub, id) {
+  const removed = (state.examData[sub].mistake || []).find(x => x.id === id);
+  state.examData[sub].mistake = (state.examData[sub].mistake || []).filter(x => x.id !== id);
+  saveState(); schedulePush(); renderExam();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
+}
 
 function renderExamItemHTML(item, idx, isMistake, sub, tab) {
-  const img = item.image ? `<img class="item-img" src="${item.image}" onclick="openLightbox('${item.image}')" draggable="false">` : '';
-  const pdf = item.pdf ? `<a href="${item.pdf}" target="_blank" class="item-pdf">📄 打开PDF</a>` : '';
-  const answer = isMistake ? `
+  const imgSrc = escapeAttr(mediaSrc(item.image));
+  const pdfSrc = escapeAttr(mediaSrc(item.pdf));
+  const ansImgSrc = escapeAttr(mediaSrc(item.answerImage));
+  const ansPdfSrc = escapeAttr(mediaSrc(item.ansPdf));
+  const img = item.image ? `<img class="item-img" src="${imgSrc}" onclick="openLightbox('${imgSrc}')" draggable="false">` : '';
+  const pdf = item.pdf ? `<a href="${pdfSrc}" target="_blank" class="item-pdf">📄 打开PDF</a>` : '';
+  const ansPdf = item.ansPdf ? `<a href="${ansPdfSrc}" target="_blank" class="item-pdf">📄 打开答案PDF</a>` : '';
+  const showAnswer = isMistake || (tab && tab !== 'mistake');
+  const hasAnswer = item.answer || item.answerImage || item.ansPdf;
+  const answer = (showAnswer && hasAnswer) ? `
     <div class="exam-answer ${item.hidden ? 'hidden' : ''}" id="ans-${item.id}">
       <div style="font-weight:600;margin:8px 0 4px">答案：</div>
       ${item.answer ? `<div>${escapeHtml(item.answer)}</div>` : ''}
-      ${item.answerImage ? `<img class="item-img" src="${item.answerImage}" onclick="openLightbox('${item.answerImage}')">` : ''}
+      ${item.answerImage ? `<img class="item-img" src="${ansImgSrc}" onclick="openLightbox('${ansImgSrc}')">` : ''}
+      ${ansPdf}
     </div>` : '';
   return `
     <div class="item-card" draggable="true" data-idx="${idx}" data-id="${item.id}">
       <div class="item-header">
         <div class="item-title">${escapeHtml(item.title || (isMistake ? '错题' : '未命名'))}</div>
         <div style="display:flex;gap:6px">
-          ${isMistake && (item.answer || item.answerImage) ? `<button class="btn btn-small btn-secondary" onclick="toggleAnswer('${item.id}')">${item.hidden ? '显示答案' : '隐藏答案'}</button>` : ''}
+          ${(showAnswer && hasAnswer) ? `<button class="btn btn-small btn-secondary" onclick="toggleAnswer('${item.id}')">${item.hidden ? '显示答案' : '隐藏答案'}</button>` : ''}
           <button class="btn btn-small btn-danger" onclick="deleteExamItem('${item.id}')">删除</button>
         </div>
       </div>
@@ -1907,35 +1926,52 @@ function attachExamEvents(sub, tab) {
   });
 }
 
+// 从拖拽事件里稳健地取出文件：先查 files，再兜底查 items（截图工具/浏览器拖出的图常不带 files）
+function pickDroppedFile(e, accept) {
+  const files = [...(e.dataTransfer.files || [])];
+  let f = files.find(t => accept.some(a => (t.type || '').indexOf(a) >= 0));
+  if (!f && e.dataTransfer.items) {
+    for (const it of e.dataTransfer.items) {
+      if (it.kind === 'file' && accept.some(a => (it.type || '').indexOf(a) >= 0)) { f = it.getAsFile(); if (f) break; }
+    }
+  }
+  return f || null;
+}
 function bindExamDrop(sub, tab) {
   const card = document.getElementById('exam-add-card');
   if (!card) return;
-  const drop = document.getElementById('exam-drop');
-  const onOver = e => { e.preventDefault(); card.classList.add('drag-over'); };
+  const onOver = e => { e.preventDefault(); e.stopPropagation(); card.classList.add('drag-over'); };
+  card.addEventListener('dragenter', onOver);
   card.addEventListener('dragover', onOver);
   card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
   card.addEventListener('drop', e => {
-    e.preventDefault(); card.classList.remove('drag-over');
-    const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
+    e.preventDefault(); e.stopPropagation(); card.classList.remove('drag-over');
+    const file = pickDroppedFile(e, ['image', 'pdf']);
     if (file) quickAddExamImage(sub, tab, file, false);
+    else toast('未识别到图片/文件，请点击「选择文件」或改用文件框');
   });
   const ansDrop = document.getElementById('exam-answer-drop');
   if (ansDrop) {
-    ansDrop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); ansDrop.classList.add('drag-over'); });
-    ansDrop.addEventListener('dragleave', e => { e.stopPropagation(); ansDrop.classList.remove('drag-over'); });
+    const onAnsOver = e => { e.preventDefault(); e.stopPropagation(); ansDrop.classList.add('drag-over'); };
+    ansDrop.addEventListener('dragenter', onAnsOver);
+    ansDrop.addEventListener('dragover', onAnsOver);
+    ansDrop.addEventListener('dragleave', () => ansDrop.classList.remove('drag-over'));
     ansDrop.addEventListener('drop', e => {
       e.preventDefault(); e.stopPropagation(); ansDrop.classList.remove('drag-over');
-      const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
+      const file = pickDroppedFile(e, ['image', 'pdf']);
       if (file) quickAddExamImage(sub, tab, file, true);
+      else toast('未识别到图片/文件，请点击「选择文件」或改用文件框');
     });
   }
 }
 function quickAddExamImage(sub, tab, file, isAnswer) {
-  readFile(file, (img) => {
+  const isPdf = file.type === 'application/pdf';
+  uploadMedia(file).then((ref) => {
     const isMistake = tab === 'mistake';
-    const item = { id: Date.now().toString(), title: '', desc: '', image: '', answer: '', answerImage: '', hidden: isMistake };
-    if (isMistake) { item.reviewDate = todayStr(); item.reviewAfter = 1; item.reviewCount = 0; }
-    if (isAnswer) item.answerImage = img; else item.image = img;
+    const item = { id: Date.now().toString(), title: '', desc: '', image: '', answer: '', answerImage: '', hidden: isMistake, pdf: '' };
+    if (isMistake || tab !== 'mistake') { item.reviewDate = todayStr(); item.reviewAfter = 1; item.reviewCount = 0; }
+    if (isAnswer) { if (isPdf) item.pdf = ref; else item.answerImage = ref; }
+    else { if (isPdf) item.pdf = ref; else item.image = ref; }
     state.examData[sub][tab].push(item);
     saveState(); schedulePush(); renderExam();
   });
@@ -1949,24 +1985,34 @@ function addExamItem() {
   const hidden = document.getElementById('exam-hide')?.checked || false;
   const file = document.getElementById('exam-img').files[0];
   const ansFile = document.getElementById('exam-answer-img')?.files[0];
-  const save = (image, answerImage) => {
+  const save = (image, answerImage, pdf, ansPdf) => {
     const isMistake = tab === 'mistake';
-    const item = { id: Date.now().toString(), title, desc, image, answer, answerImage, hidden };
-    if (isMistake) { item.reviewDate = todayStr(); item.reviewAfter = 1; item.reviewCount = 0; }
+    const item = { id: Date.now().toString(), title, desc, image, answer, answerImage, hidden, pdf: pdf || '', ansPdf: ansPdf || '' };
+    // 错题与知识点都进记忆曲线（进入错题复习计划 / 背诵清单）
+    item.reviewDate = todayStr(); item.reviewAfter = 1; item.reviewCount = 0;
     state.examData[sub][tab].push(item);
     saveState(); schedulePush(); renderExam();
     ['exam-title','exam-desc','exam-answer'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     ['exam-img','exam-answer-img'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   };
-  if (ansFile) { readFile(ansFile, ai => { if (file) readFile(file, img => save(img, ai)); else save('', ai); }); }
-  else if (file) readFile(file, img => save(img, ''));
-  else save('', '');
+  // 主图/文件
+  const upMain = file ? uploadMedia(file) : Promise.resolve('');
+  const upAns = ansFile ? uploadMedia(ansFile) : Promise.resolve('');
+  Promise.all([upMain, upAns]).then(([mainRef, ansRef]) => {
+    const mainPdf = (file && file.type === 'application/pdf') ? mainRef : '';
+    const mainImg = (file && file.type !== 'application/pdf') ? mainRef : '';
+    const ansPdf = (ansFile && ansFile.type === 'application/pdf') ? ansRef : '';
+    const ansImg = (ansFile && ansFile.type !== 'application/pdf') ? ansRef : '';
+    save(mainImg, ansImg, mainPdf, ansPdf);
+  });
 }
 
 function deleteExamItem(id) {
   const sub = state.exam.subject, tab = state.exam.tab;
+  const removed = (state.examData[sub][tab] || []).find(x => x.id === id);
   state.examData[sub][tab] = state.examData[sub][tab].filter(x => x.id !== id);
   saveState(); schedulePush(); renderExam();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
 }
 function toggleAnswer(id) {
   const sub = state.exam.subject, tab = state.exam.tab;
@@ -1993,8 +2039,10 @@ function mergeExamItem(id) {
   prev.title = (prev.title || '') + ' / ' + (cur.title || '');
   prev.desc = (prev.desc || '') + '\n\n' + (cur.desc || '');
   if (cur.image) prev.image = cur.image;
+  if (cur.pdf) prev.pdf = cur.pdf;
   if (cur.answer) prev.answer = (prev.answer || '') + '\n\n' + cur.answer;
   if (cur.answerImage) prev.answerImage = cur.answerImage;
+  if (cur.ansPdf) prev.ansPdf = cur.ansPdf;
   arr.splice(idx, 1);
   saveState(); schedulePush(); renderExam();
 }
@@ -2023,7 +2071,7 @@ function renderReviewPlanHtml() {
     const tag = overdue ? `<span class="status-bad" style="font-size:11px">逾期</span>` : `<span class="status-warn" style="font-size:11px">待复习</span>`;
     const efTag = item.ef ? `<span class="category-tag" style="font-size:10px;opacity:.7">EF ${item.ef.toFixed(2)}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cfg.icon} <b>${escapeHtml(title)}</b> ${tag} ${efTag}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="jumpToItem('${sub}','mistake')" title="点击跳转到对应错题">${cfg.icon} <b>${escapeHtml(title)}</b> ${tag} ${efTag}</span>
         <button class="btn btn-small btn-primary" onclick="markReviewed('${sub}','${item.id}')">✓ 已复习</button>
         <button class="btn btn-small btn-danger" onclick="deleteMistake('${sub}','${item.id}')" title="删除">🗑</button>
       </div>`;
@@ -2050,8 +2098,14 @@ function renderReviewPlanHtml() {
 // 背诵打卡（间隔重复）：数学 / 专业课(408) / 英语 / 政治
 const RECITE_INTERVALS = [1, 2, 4, 7, 15, 30];
 function mediaThumbHtml(item) {
-  if (item.pdf) return `<a href="${item.pdf}" target="_blank" title="点击打开PDF" style="display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--danger);font-size:18px;margin-right:8px;text-decoration:none;flex-shrink:0">📄</a>`;
-  if (item.image) return `<img src="${item.image}" onclick="openLightbox('${item.image}')" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:8px;flex-shrink:0">`;
+  if (item.pdf) {
+    const pdfSrc = escapeAttr(mediaSrc(item.pdf));
+    return `<a href="${pdfSrc}" target="_blank" title="点击打开PDF" style="display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--danger);font-size:18px;margin-right:8px;text-decoration:none;flex-shrink:0">📄</a>`;
+  }
+  if (item.image) {
+    const imgSrc = escapeAttr(mediaSrc(item.image));
+    return `<img src="${imgSrc}" onclick="openLightbox('${imgSrc}')" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:8px;flex-shrink:0">`;
+  }
   return '';
 }
 function allRecite() {
@@ -2065,6 +2119,20 @@ function dueRecite() {
   const t = todayStr();
   return allRecite().filter(m => !m.item.reviewDate || m.item.reviewDate <= t);
 }
+// 知识点 = 各科目非 mistake 标签的条目，按记忆曲线汇入背诵清单
+function allKnowledge() {
+  const out = [];
+  ['math','cs408','english','politics'].forEach(sub => {
+    (subjectConfig[sub].tabs || []).filter(t => t.key !== 'mistake').forEach(t => {
+      (state.examData[sub][t.key] || []).forEach(item => out.push({ sub, tab: t.key, item }));
+    });
+  });
+  return out;
+}
+function dueKnowledge() {
+  const t = todayStr();
+  return allKnowledge().filter(m => !m.item.reviewDate || m.item.reviewDate <= t);
+}
 function addRecite(sub, title) {
   if (!title || !title.trim()) return;
   state.recite[sub].push({ id: Date.now().toString(), title: title.trim(), reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
@@ -2077,7 +2145,7 @@ function addReciteMedia(sub, media) {
   state.recite[sub].push(item);
   saveState(); schedulePush(); renderExam();
 }
-function markRecited(sub, id) { openReviewRating('recite', sub, id); }
+function markRecited(sub, id, tab) { openReviewRating(tab ? 'knowledge' : 'recite', sub, id, tab); }
 function addReciteFromCard() {
   const sub = document.getElementById('recite-sub').value;
   const title = (document.getElementById('recite-title').value || '').trim();
@@ -2107,49 +2175,60 @@ function applySM2(it, q) {
   it.reviewAfter = it.interval;
   it.reviewCount = (it.reviewCount || 0) + 1;
 }
-function openReviewRating(type, sub, id) {
-  _rating = { type, sub, id };
+function openReviewRating(type, sub, id, tab) {
+  _rating = { type, sub, id, tab: tab || '' };
   document.getElementById('review-rating-title').textContent = '这次复习得怎么样？';
   document.getElementById('review-rating-modal').classList.add('show');
   focusModalFirst('review-rating-modal');
 }
 function confirmReviewRating(q) {
   const r = _rating; if (!r) return;
-  const it = (r.type === 'mistake' ? (state.examData[r.sub].mistake || []) : (state.recite[r.sub] || [])).find(x => x.id === r.id);
+  let it = null;
+  if (r.type === 'mistake') it = (state.examData[r.sub].mistake || []).find(x => x.id === r.id);
+  else if (r.type === 'recite') it = (state.recite[r.sub] || []).find(x => x.id === r.id);
+  else if (r.type === 'knowledge') it = (state.examData[r.sub][r.tab] || []).find(x => x.id === r.id);
   if (it) { applySM2(it, q); saveState(); schedulePush(); }
   closeReviewRating();
   if (state.view === 'exam') renderExam();
   toast(q >= 3 ? '👍 记得不错，下次拉长间隔' : '🔁 忘了，明天再练');
 }
+function jumpToItem(sub, tab) {
+  setView('exam');
+  state.exam.subject = sub;
+  if (tab) state.exam.tab = tab;
+  saveState(); renderExam();
+}
 function closeReviewRating() { const m = document.getElementById('review-rating-modal'); if (m) m.classList.remove('show'); _rating = null; }
 function reciteDrop(e) {
   e.preventDefault();
-  const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/') || f.type === 'application/pdf');
-  if (!file) return;
+  const file = pickDroppedFile(e, ['image', 'pdf']);
+  if (!file) { toast('未识别到图片/文件，请点击「选择文件」或改用文件框'); return; }
   const sub = document.getElementById('recite-sub').value;
   const isPdf = file.type === 'application/pdf';
-  readFile(file, data => addReciteMedia(sub, isPdf ? { pdf: data, title: 'PDF背诵' } : { image: data, title: '图片背诵' }));
+  uploadMedia(file).then(data => addReciteMedia(sub, isPdf ? { pdf: data, title: 'PDF背诵' } : { image: data, title: '图片背诵' }));
 }
 function reciteFile(input) {
   const sub = document.getElementById('recite-sub').value;
   const file = input.files[0];
   if (!file) return;
   const isPdf = file.type === 'application/pdf';
-  readFile(file, data => { addReciteMedia(sub, isPdf ? { pdf: data, title: 'PDF背诵' } : { image: data, title: '图片背诵' }); input.value = ''; });
+  uploadMedia(file).then(data => { addReciteMedia(sub, isPdf ? { pdf: data, title: 'PDF背诵' } : { image: data, title: '图片背诵' }); input.value = ''; });
 }
 function renderRecitePlanHtml() {
-  const due = dueRecite();
-  const total = allRecite().length;
-  let rows = due.map(({sub, item}) => {
+  const due = [...dueRecite().map(r => ({ ...r, kind: 'recite' })), ...dueKnowledge().map(r => ({ ...r, kind: 'knowledge' }))];
+  const total = allRecite().length + allKnowledge().length;
+  let rows = due.map(({sub, tab, item, kind}) => {
     const cfg = subjectConfig[sub];
     const overdue = item.reviewDate && item.reviewDate < todayStr();
     const tag = overdue ? `<span class="status-bad" style="font-size:11px">逾期</span>` : `<span class="status-warn" style="font-size:11px">待背</span>`;
     const efTag = item.ef ? `<span class="category-tag" style="font-size:10px;opacity:.7">EF ${item.ef.toFixed(2)}</span>` : '';
+    const tabName = (kind === 'knowledge' && tab) ? ((subjectConfig[sub].tabs.find(t => t.key === tab) || {}).name || '') : '';
+    const nameHtml = `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="jumpToItem('${sub}','${tab||''}')" title="点击跳转到对应内容">${cfg.icon} <b>${escapeHtml(item.title)}</b> ${tabName ? `<span style="font-size:10px;color:var(--text-secondary)">· ${escapeHtml(tabName)}</span>` : ''} ${tag} ${efTag}</span>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
         ${mediaThumbHtml(item)}
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cfg.icon} <b>${escapeHtml(item.title)}</b> ${tag} ${efTag}</span>
-        <button class="btn btn-small btn-primary" onclick="markRecited('${sub}','${item.id}')">✓ 已背</button>
-        <button class="btn btn-small btn-danger" onclick="deleteRecite('${sub}','${item.id}')" title="删除">🗑</button>
+        ${nameHtml}
+        <button class="btn btn-small btn-primary" onclick="markRecited('${sub}','${item.id}','${tab||''}')">✓ 已背</button>
+        <button class="btn btn-small btn-danger" onclick="${kind === 'recite' ? `deleteRecite('${sub}','${item.id}')` : `deleteKnowledge('${sub}','${tab}','${item.id}')`}" title="删除">🗑</button>
       </div>`;
   }).join('');
   if (!rows) rows = `<div class="empty">🎉 暂无待背内容，保持住！</div>`;
@@ -2173,13 +2252,19 @@ function renderRecitePlanHtml() {
       </div>
     </div>`;
 }
+function deleteKnowledge(sub, tab, id) {
+  const removed = (state.examData[sub][tab] || []).find(x => x.id === id);
+  state.examData[sub][tab] = (state.examData[sub][tab] || []).filter(x => x.id !== id);
+  saveState(); schedulePush(); renderExam();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
+}
 function mistakeDrop(e) {
   e.preventDefault();
-  const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/') || f.type === 'application/pdf');
-  if (!file) return;
+  const file = pickDroppedFile(e, ['image', 'pdf']);
+  if (!file) { toast('未识别到图片/文件，请点击「选择文件」或改用文件框'); return; }
   const subj = (document.getElementById('mistake-sub') || {}).value || 'math';
   const isPdf = file.type === 'application/pdf';
-  readFile(file, data => {
+  uploadMedia(file).then(data => {
     state.examData[subj].mistake.push({ id: Date.now().toString(), title: isPdf ? 'PDF错题' : '图片错题', desc: '', image: isPdf ? '' : data, pdf: isPdf ? data : '', answer: '', answerImage: '', hidden: true, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
     saveState(); schedulePush(); renderExam();
   });
@@ -2189,7 +2274,7 @@ function mistakeFile(input) {
   const file = input.files[0];
   if (!file) return;
   const isPdf = file.type === 'application/pdf';
-  readFile(file, data => {
+  uploadMedia(file).then(data => {
     state.examData[subj].mistake.push({ id: Date.now().toString(), title: isPdf ? 'PDF错题' : '图片错题', desc: '', image: isPdf ? '' : data, pdf: isPdf ? data : '', answer: '', answerImage: '', hidden: true, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
     saveState(); schedulePush(); renderExam();
     input.value = '';
@@ -2418,9 +2503,10 @@ function renderHobbyItems() {
   if (items.length === 0) { container.innerHTML = `<div class="empty">该分类下暂无内容</div>`; return; }
   container.innerHTML = '<div class="hobby-items-grid">' + items.map(item => {
     const hasMedia = !!(item.image || item.video);
+    const imgSrc = escapeAttr(mediaSrc(item.image));
     let media = '';
-    if (item.image) media = `<img class="item-img" src="${item.image}" onclick="openLightbox('${item.image}')">`;
-    if (item.video) media = `<video controls style="width:100%;border-radius:10px;margin-bottom:8px"><source src="${item.video}"></video>`;
+    if (item.image) media = `<img class="item-img" src="${imgSrc}" onclick="openLightbox('${imgSrc}')">`;
+    if (item.video) media = `<video controls style="width:100%;border-radius:10px;margin-bottom:8px"><source src="${escapeAttr(mediaSrc(item.video))}"></video>`;
     const safeHref = (item.link || '').replace(/"/g, '&quot;');
     const link = item.link ? `<a class="btn btn-small btn-secondary resource-open-btn" href="${safeHref}" target="_blank" rel="noopener">🔗 打开${platformName(item.link)}</a>` : '';
     return `<div class="item-card resource-card ${hasMedia ? 'wide' : ''}">
@@ -2515,10 +2601,15 @@ function addCollectItem() {
     renderHobbies();
     alert('已收藏到「' + h.name + '」· ' + category);
   };
-  if (file) readFile(file, (data) => { file.type.startsWith('video/') ? save('', data) : save(data, ''); });
+  if (file) uploadMedia(file).then((data) => { file.type.startsWith('video/') ? save('', data) : save(data, ''); });
   else save('', '');
 }
-function deleteHobbyItem(id) { state.hobbyItems = state.hobbyItems.filter(x => x.id !== id); saveState(); schedulePush(); renderHobbies(); }
+function deleteHobbyItem(id) {
+  const removed = state.hobbyItems.find(x => x.id === id);
+  state.hobbyItems = state.hobbyItems.filter(x => x.id !== id);
+  saveState(); schedulePush(); renderHobbies();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
+}
 
 // ================= 分享/粘贴链接 → 快速收藏 =================
 // 从抖音/B站等「分享到 Head up」或「复制链接后打开页面」自动带入链接并提取标题，选好项目+分类即入库
@@ -2545,13 +2636,40 @@ function cleanHint(title, text, url) {
     raw = (text || '').replace(/https?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim();
   }
   if (raw) {
+    // 去掉平台水印 / 分享引导文案（抖音/小红书等复制出来常带这些）
+    raw = raw.replace(/(来自|From\s*)(抖音|小红书|哔哩哔哩|快手|微博|bilibili|douyin|xiaohongshu|kuaishou)/gi, '');
+    raw = raw.replace(/(复制|长按)?(链接|打开)?(此|该)?(抖音|快手|小红书|微博|B站|视频)?(查看|观看|打开|了解|详情|更多).{0,12}?$/i, '');
+    raw = raw.replace(/(点击|长按)?(下方|左下角)?(链接|名片)?(即可)?(查看|打开|观看|领取|领取红包)/i, '');
+    raw = raw.replace(/@[\w\u4e00-\u9fa5一-龥]+/g, ''); // @用户名
+    raw = raw.replace(/(短视频|双击点赞|关注我|更多视频|精彩内容|原创|记录生活|日常vlog)/gi, '');
     // 去掉平台后缀，如 “ - 哔哩哔哩” “ | 抖音” “_ 小红书” 等
     raw = raw.replace(/\s*[-–—|｜_]\s*(哔哩哔哩|bilibili|抖音|douyin|tiktok|小红书|xiaohongshu|youtube|优酷|腾讯视频|爱奇艺|微博|weibo).*$/i, '');
     raw = raw.replace(/\s*[-–—|｜_]\s*(官方|Official|频道|Channel).*$/i, '');
-    raw = raw.trim();
+    raw = raw.replace(/\s+/g, ' ').trim();
+    // 去掉纯表情/乱码行（无中英文数字）
+    if (/^[^一-龥a-zA-Z0-9]+$/.test(raw)) raw = '';
     if (raw) return raw.slice(0, 80);
   }
   return platformNameFromUrl(url) + '链接';
+}
+// 根据文本/链接自动匹配最相关的项目与分类（用户可在弹窗里改）
+function matchHobbyCategory(text, link) {
+  const hay = ((text || '') + ' ' + (link || '')).toLowerCase();
+  let best = null, bestScore = -1;
+  (state.hobbies || []).forEach(h => {
+    let score = 0;
+    const hname = (h.name || '').toLowerCase();
+    if (hname && hay.indexOf(hname) >= 0) score += 3;
+    (h.categories || []).forEach(c => {
+      const cl = (c || '').toLowerCase();
+      if (cl && hay.indexOf(cl) >= 0) score += 2;
+    });
+    if (score > bestScore) { bestScore = score; best = h; }
+  });
+  if (!best) best = (state.hobbies || [])[0];
+  if (!best) return { hobbyId: '', category: '' };
+  const category = (bestScore > 0 && best.categories && best.categories.length) ? best.categories[0] : ((best.categories && best.categories[0]) || '');
+  return { hobbyId: best.id, category };
 }
 let _lastShareLink = '';
 function openCollectShareModal(link, hint) {
@@ -2564,7 +2682,12 @@ function openCollectShareModal(link, hint) {
   document.getElementById('share-link').value = link;
   document.getElementById('share-text').value = hint || '';
   document.getElementById('share-new-cat').value = '';
-  document.getElementById('share-cat-select').innerHTML = '<option value="">（无分类）</option>';
+  // 自动匹配最相关的项目/分类（用户可改）
+  const guess = matchHobbyCategory(hint, link);
+  sel.value = guess.hobbyId;
+  onShareHobbyChange();
+  const cs = document.getElementById('share-cat-select');
+  if (cs && guess.category) cs.value = guess.category;
   const m = document.getElementById('collect-share-modal');
   m.classList.add('show');
   focusModalFirst('collect-share-modal');
@@ -2638,24 +2761,32 @@ function bindCollectDrop() {
   if (!card || _collectDropBound) return;
   _collectDropBound = true;
   const wrap = card; // 拖拽区自身
+  wrap.addEventListener('dragenter', e => { e.preventDefault(); wrap.classList.add('drag-over'); });
   wrap.addEventListener('dragover', e => { e.preventDefault(); wrap.classList.add('drag-over'); });
   wrap.addEventListener('dragleave', () => wrap.classList.remove('drag-over'));
   wrap.addEventListener('drop', e => {
     e.preventDefault(); wrap.classList.remove('drag-over');
-    const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
-    if (!file) return;
-    const hobbyId = document.getElementById('collect-hobby-select').value;
-    const h = state.hobbies.find(x => x.id === hobbyId);
-    if (!h) { alert('请先选择项目再拖入文件'); return; }
-    const sel = document.getElementById('collect-cat-select');
-    const newCat = document.getElementById('collect-new-cat').value.trim();
-    let cat = newCat || sel.value || (h.categories[0] || '未分类');
-    if (newCat && !h.categories.includes(newCat)) h.categories.push(newCat);
-    readFile(file, data => {
-      state.hobbyItems.push({ id: Date.now().toString(), hobbyId: h.id, category: cat, link: '', text: '', image: file.type.startsWith('image/') ? data : '', video: file.type.startsWith('video/') ? data : '' });
-      saveState(); schedulePush(); renderHobbies();
-      alert('已收藏到「' + h.name + '」· ' + cat);
-    });
+    const file = pickDroppedFile(e, ['image', 'video']);
+    if (file) {
+      const hobbyId = document.getElementById('collect-hobby-select').value;
+      const h = state.hobbies.find(x => x.id === hobbyId);
+      if (!h) { alert('请先选择项目再拖入文件'); return; }
+      const sel = document.getElementById('collect-cat-select');
+      const newCat = document.getElementById('collect-new-cat').value.trim();
+      let cat = newCat || sel.value || (h.categories[0] || '未分类');
+      if (newCat && !h.categories.includes(newCat)) h.categories.push(newCat);
+      uploadMedia(file).then(data => {
+        state.hobbyItems.push({ id: Date.now().toString(), hobbyId: h.id, category: cat, link: '', text: '', image: file.type.startsWith('image/') ? data : '', video: file.type.startsWith('video/') ? data : '' });
+        saveState(); schedulePush(); renderHobbies();
+        alert('已收藏到「' + h.name + '」· ' + cat);
+      });
+      return;
+    }
+    // 拖入的是链接/文本 → 走粘贴识别流程
+    const txt = (e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text/uri-list') || '').trim();
+    const link = extractFirstUrl(txt);
+    if (link) openCollectShareModal(link, cleanHint('', txt, link));
+    else toast('未识别到图片/视频/链接，请改用文件框或粘贴识别');
   });
 }
 
@@ -2726,7 +2857,8 @@ function recordSleep() {
   alert(`已记录睡觉时间：${time}`);
 }
 function recordWake() {
-  const time = nowTimeStr();
+  const wi = document.getElementById('wake-input');
+  const time = (wi && wi.value) ? wi.value : nowTimeStr(); // 用手动设置的起床时间，忘记打卡也能回填
   let rec = findOpenSleep();
   if (!rec) { rec = newSleepRec(); state.habit.records.push(rec); }
   rec.wake = time;
@@ -3103,9 +3235,7 @@ function addMemo() {
     }
   };
   if (hasImg) {
-    const fr = new FileReader();
-    fr.onload = () => finish(fr.result);
-    fr.readAsDataURL(imgEl.files[0]);
+    uploadMedia(imgEl.files[0]).then(fr => finish(fr));
   } else {
     finish(keepImg ? _editingMemoImage : '');
   }
@@ -3121,7 +3251,7 @@ function renderMemos() {
     const status = m.fired ? '<span style="color:var(--primary);font-size:12px">已提醒</span>'
       : (due ? '<span style="color:var(--danger);font-size:12px">已到点</span>' : '<span style="color:var(--text-secondary);font-size:12px">待提醒</span>');
     const link = m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:12px;word-break:break-all">🔗 打开链接</a>` : '';
-    const img = m.image ? `<img src="${m.image}" style="max-width:60px;max-height:60px;border-radius:8px;margin-top:4px">` : '';
+    const img = m.image ? `<img src="${escapeAttr(mediaSrc(m.image))}" style="max-width:60px;max-height:60px;border-radius:8px;margin-top:4px">` : '';
     return `<div class="task-item" style="align-items:flex-start;margin-bottom:8px">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${escapeHtml(m.text || '（无文字）')} <span style="color:var(--text-secondary);font-weight:400">· ${m.time.replace('T', ' ')}</span></div>
@@ -3138,8 +3268,10 @@ function renderMemos() {
 }
 function deleteMemo(id) {
   if (!confirm('删除这条定时提醒？')) return;
+  const removed = (state.memos || []).find(m => m.id === id);
   state.memos = (state.memos || []).filter(m => m.id !== id);
   saveState(); schedulePush(); renderMemos();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
 }
 function resetMemoForm() {
   ['memo-time', 'memo-text', 'memo-link', 'memo-image'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -3325,7 +3457,7 @@ function showMemoAlarm(m) {
   const img = document.getElementById('memo-alarm-image');
   const link = document.getElementById('memo-alarm-link');
   if (text) text.textContent = m.text || '⏰ 时间到了！';
-  if (img) img.innerHTML = m.image ? `<img src="${m.image}" style="max-width:200px;border-radius:10px">` : '';
+  if (img) img.innerHTML = m.image ? `<img src="${escapeAttr(mediaSrc(m.image))}" style="max-width:200px;border-radius:10px">` : '';
   if (link) link.innerHTML = m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-block;margin-top:6px">🔗 打开链接</a>` : '';
   if (modal) modal.classList.add('show');
   playAlarm();
@@ -3336,7 +3468,7 @@ function showMemoAlarm(m) {
   if ('Notification' in window && Notification.permission === 'granted') {
     const title = '⏰ 提醒' + (m.text ? '：' + m.text : '时间到了');
     const body = (m.time ? (m.time.replace('T', ' ') + ' · ') : '') + '点此查看或关闭铃声';
-    const opts = { body, tag: 'memo-' + m.id, requireInteraction: true, icon: m.image || '', data: { memoId: m.id } };
+    const opts = { body, tag: 'memo-' + m.id, requireInteraction: true, icon: mediaSrc(m.image) || '', data: { memoId: m.id } };
     try { if ('actions' in Notification.prototype) opts.actions = [{ action: 'stop', title: '🔕 停止铃声' }]; } catch (e) {}
     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
       navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts)).catch(() => { try { new Notification(title, { body }); } catch (e2) {} });
@@ -4207,8 +4339,18 @@ function showRewardDone(name) {
   const m = document.getElementById('reward-done-modal');
   if (!m) { toast('⏰ ' + name + ' 时间到！'); return; }
   document.getElementById('reward-done-name').textContent = name;
+  const msgEl = document.getElementById('reward-done-msg');
+  if (msgEl) {
+    try {
+      const goal = todayGoal();
+      const eff = todayEffectiveMin();
+      const remain = Math.max(0, (goal || 0) - eff);
+      if (goal && remain > 0) msgEl.textContent = '今日学习还差 ' + remain + ' 分钟，先去补上吧 💪';
+      else if (goal) msgEl.textContent = '今日目标已达成，继续保持节奏 📚';
+    } catch(e) {}
+  }
   if (window.Notification && Notification.permission === 'granted') {
-    try { new Notification('⏰ 时间到啦', { body: '「' + name + '」计时结束，去休息或玩一会儿吧 🎉' }); } catch (e) {}
+    try { new Notification('⏰ 奖励时间到啦', { body: '「' + name + '」奖励时间结束，该回去继续学习啦 📚' }); } catch (e) {}
   }
   m.classList.add('show');
 }
@@ -4483,13 +4625,21 @@ function openPlanFile(id) {
   if (!f) return;
   const name = f.name || '文件';
   const openBlob = (blob) => {
+    // 直接在新标签页渲染（PDF/图片），PWA/移动端不会再"无反应"
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name + (/\.pdf$/i.test(name) || (f.url && /\.pdf$/i.test(f.url)) ? '.pdf' : '');
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 8000);
-    toast('已下载：' + name);
+    const w = window.open(url, '_blank');
+    if (w) {
+      toast('已打开：' + name);
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } else {
+      // 弹窗被拦截：退回下载方式
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name + (/\.pdf$/i.test(name) || (f.url && /\.pdf$/i.test(f.url)) ? '.pdf' : '');
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 8000);
+      toast('已下载：' + name);
+    }
   };
   // 链接类文件（含 plan/ 同域 PDF）：直接新标签页打开，移动端/桌面最稳，不会被当成"无反应/白屏"
   if (f.url) {
@@ -4693,11 +4843,13 @@ function renderExamOverview() {
   if (histWeeks.length) {
     const bars = histWeeks.map(w => {
       const pct = Math.min(100, Math.round(w.met / 7 * 100));
+      const barColor = pct >= 70 ? 'var(--primary)' : (pct > 0 ? 'var(--status-warn)' : 'var(--border)');
+      const barH = Math.max(pct, 2); // 0 分时仍留一条基线，避免大片空白
       return `<div style="flex:1;text-align:center">
-        <div style="height:54px;display:flex;align-items:flex-end;justify-content:center">
-          <div style="width:72%;background:${pct>=70?'var(--primary)':'var(--status-warn)'};border-radius:4px 4px 0 0;height:${pct}%"></div>
+        <div style="height:54px;min-height:54px;display:flex;align-items:flex-end;justify-content:center">
+          <div style="width:72%;background:${barColor};border-radius:4px 4px 0 0;height:${barH}%"></div>
         </div>
-        <div style="font-size:11px;color:var(--text-secondary);font-weight:600">${w.met}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${w.met}</div>
         <div style="font-size:9px;color:var(--text-secondary)">W${w.pw}</div>
       </div>`;
     }).join('');
@@ -5134,6 +5286,66 @@ function readFile(file, callback) {
   reader.onload = e => callback(e.target.result);
   reader.readAsDataURL(file);
 }
+// ================= 媒体文件（独立仓库文件，绕过 1MB 同步限制） =================
+const SYNC_BRANCH = 'master'; // 与 SYNC_REPO 默认分支一致
+function mediaExt(file) {
+  const map = {'image/jpeg':'jpg','image/png':'png','image/gif':'gif','image/webp':'webp','application/pdf':'pdf','video/mp4':'mp4','video/webm':'webm'};
+  if (map[file.type]) return map[file.type];
+  const m = /\.([a-z0-9]+)$/i.exec(file.name || '');
+  return m ? m[1].toLowerCase() : 'bin';
+}
+function rawUrl(repoPath) {
+  return 'https://raw.githubusercontent.com/' + SYNC_OWNER + '/' + SYNC_REPO + '/' + SYNC_BRANCH + '/' + repoPath;
+}
+// 统一取可渲染的 src：旧 data: URL 原样返回；新引用返回 raw 地址
+function mediaSrc(field) {
+  if (!field) return '';
+  if (typeof field === 'string') return field; // 旧 data: URL 或普通 http(s) 链接
+  if (field.p) return rawUrl(field.p);          // 新引用 {p, s}
+  return '';
+}
+function mediaIsRef(field) { return field && typeof field === 'object' && !!field.p; }
+function fileToDataUrl(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+}
+async function uploadMedia(file) {
+  const dataUrl = await fileToDataUrl(file);
+  if (!syncToken() || !syncRoom) return { dataUrl }; // 本地兜底（未配置同步）
+  const ext = mediaExt(file);
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const path = 'media/' + syncRoomSafe() + '/' + id + '.' + ext;
+  const b64 = dataUrl.split(',')[1];
+  let res;
+  try {
+    res = await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + path, {
+      method: 'PUT',
+      body: JSON.stringify({ message: 'media: ' + path, content: b64, branch: SYNC_BRANCH })
+    });
+  } catch (e) { return { dataUrl }; } // 网络失败 → 本地兜底
+  if (!res.ok) { // 422/413(>1MB) 等 → 本地兜底并提示
+    setTimeout(() => toast('该文件超过 1MB 或上传失败，仅保存在本机（无法跨设备同步）'), 0);
+    return { dataUrl };
+  }
+  const json = await res.json().catch(() => ({}));
+  const sha = (json.content && json.content.sha) || '';
+  return { p: path, s: sha };
+}
+async function purgeMediaRefs(refs) {
+  if (!syncToken() || !syncRoom) return;
+  const list = (refs || []).filter(mediaIsRef);
+  for (const r of list) {
+    try {
+      await ghApi('/repos/' + SYNC_OWNER + '/' + SYNC_REPO + '/contents/' + r.p, {
+        method: 'DELETE',
+        body: JSON.stringify({ message: 'del media: ' + r.p, sha: r.s, branch: SYNC_BRANCH })
+      });
+    } catch (e) {} // best-effort，忽略失败
+  }
+}
+function collectMediaRefs(obj) {
+  if (!obj || typeof obj !== 'object') return [];
+  return ['image','video','pdf','answerImage','ansPdf'].map(k => obj[k]).filter(mediaIsRef);
+}
 function escapeHtml(str) { return String(str).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function escapeAttr(str) { return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('show'); }
@@ -5335,7 +5547,8 @@ init();
   <div class="modal" style="text-align:center">
     <div style="font-size:44px">⏰</div>
     <div class="modal-title" style="font-size:18px;margin:6px 0 10px">时间到啦！</div>
-    <div class="card-sub">「<b id="reward-done-name"></b>」计时结束，去休息或玩一会儿吧 🎉</div>
+    <div class="card-sub">「<b id="reward-done-name"></b>」奖励时间结束，该回去继续学习啦 📚</div>
+    <div class="card-sub" id="reward-done-msg" style="margin-top:6px;color:var(--primary);font-weight:600"></div>
     <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="closeRewardDone()">好的</button>
   </div>
 </div>
