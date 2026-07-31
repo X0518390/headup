@@ -1118,11 +1118,22 @@ const PLAN = {
 };
 
 // 当前阶段 / 周次 / 下一节点
+// 周一锚点：所有「周」的划分都从周一开始（周一=0 … 周日=6）
+function mondayOf(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  const day = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - day);
+  return d;
+}
+function mondayOfThisWeek() { return mondayOf(new Date()); }
+// 计划周锚点：取「实际开始日」所在周的周一，使计划周为 周一~周日
+function planWeekAnchor() { return mondayOf(PLAN.examStart + 'T00:00:00'); }
 function getPlanStatus() {
   const today = new Date(); today.setHours(0,0,0,0);
-  const start = new Date(PLAN.examStart + 'T00:00:00');
+  const start = new Date(PLAN.examStart + 'T00:00:00');   // 实际开始日：用于备考进度
   const daysSinceStart = Math.round((today - start) / 86400000);
-  let weekNum = Math.floor(daysSinceStart / 7) + 1;
+  const wkAnchor = planWeekAnchor();                       // 周一锚点：用于「周」划分
+  let weekNum = Math.floor((today - wkAnchor) / 86400000 / 7) + 1;
   if (weekNum < 1) weekNum = 1;
   if (weekNum > 20) weekNum = 20;
   let phase = PLAN.phases[0];
@@ -1138,7 +1149,7 @@ function getPlanStatus() {
   return { weekNum, phase, upcoming, daysSinceStart };
 }
 function weekRange(wk) {
-  const start = new Date(PLAN.examStart + 'T00:00:00');
+  const start = planWeekAnchor();
   start.setDate(start.getDate() + (wk - 1) * 7);
   const end = new Date(start); end.setDate(end.getDate() + 6);
   const f = d => (d.getMonth() + 1) + '/' + d.getDate();
@@ -3579,7 +3590,7 @@ function dayGoal(dateStrOrDate) {
 }
 function todayGoal() { return dayGoal(new Date()); }
 function weekGoalMetDays() {
-  const from = new Date(); from.setDate(from.getDate() - 6); from.setHours(0,0,0,0);
+  const from = mondayOfThisWeek();
   const byDay = {};
   (state.studyRecords || []).forEach(r => { if (new Date(r.date) >= from && !r.late) byDay[r.date] = (byDay[r.date] || 0) + (r.minutes || 0); });
   let n = 0; Object.keys(byDay).forEach(date => { if (byDay[date] >= dayGoal(date)) n++; });
@@ -3624,7 +3635,7 @@ function currentWeekNum() { return getPlanStatus().weekNum; }
 // ================= 欠账 / 补做（周目标 & 日目标） =================
 // 某计划周（第 pw 周）内，各科实际学习分钟
 function subjectActualForWeek(pw) {
-  const start = new Date(PLAN.examStart + 'T00:00:00');
+  const start = planWeekAnchor();
   start.setDate(start.getDate() + (pw - 1) * 7);
   const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
   const map = {};
@@ -3750,7 +3761,7 @@ function fabMakeup() {
 }
 // 某计划周（第 pw 周）内，达到当日目标的天数
 function weekMetDays(pw) {
-  const start = new Date(PLAN.examStart + 'T00:00:00');
+  const start = planWeekAnchor();
   start.setDate(start.getDate() + (pw - 1) * 7);
   const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
   const byDay = {};
@@ -3856,7 +3867,7 @@ function checkInHobby(hobbyId, minutes) {
   toast(`已玩 ${minutes} 分钟，时间银行剩余 ${state.hobbyBank} 分钟`);
   return true;
 }
-function weekStudyMin() { const wa = new Date(); wa.setDate(wa.getDate() - 6); wa.setHours(0,0,0,0); return studySum(r => new Date(r.date) >= wa); }
+function weekStudyMin() { const wa = mondayOfThisWeek(); return studySum(r => new Date(r.date) >= wa); }
 function monthStudyMin() { const ma = new Date(); ma.setDate(ma.getDate() - 29); ma.setHours(0,0,0,0); return studySum(r => new Date(r.date) >= ma); }
 function isAfterBedtime() {
   const bt = state.settings.bedTime || '23:30';
@@ -4311,7 +4322,7 @@ function renderDashboard() {
     <div class="card-title">🔥 本周达标天数</div>
     <div class="ring-wrap">
       <div class="ring" style="--p:${ringPct}"><span>${metDays}/${rd}</span></div>
-      <div class="card-sub">还差 <b>${Math.max(0, rd - metDays)}</b> 天即可解锁爱好奖励<br>近7天达到每日目标的次数</div>
+      <div class="card-sub">还差 <b>${Math.max(0, rd - metDays)}</b> 天即可解锁爱好奖励<br>本周（周一至今）达标天数</div>
     </div>
   </div>`;
   // 睡眠-学习关联
@@ -4622,7 +4633,7 @@ function renderExamOverview() {
   const budgetCard = `
     <div class="card">
       <div class="card-title">🎯 目标分 & 每周时间预算</div>
-      <div class="card-sub">目标总分 ${PLAN.target.total}+（保底${PLAN.safe.total}）· 每周约36.5h · 近7天实际投入</div>
+      <div class="card-sub">目标总分 ${PLAN.target.total}+（保底${PLAN.safe.total}）· 每周约36.5h · 本周（周一至今）实际投入</div>
       ${budgetRows}
     </div>`;
 
@@ -4769,7 +4780,7 @@ function renderExamOverview() {
     <button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="openWeeklyReview()">📝 本周复盘（周日花10分钟总结）</button>` + renderMockPlanHtml() + renderMockSetHtml() + stagesHtml + renderPlanFilesHtml();
   drawExamTrend();
 }
-function weekAgoDate() { const d = new Date(); d.setDate(d.getDate() - 6); d.setHours(0,0,0,0); return d; }
+function weekAgoDate() { return mondayOfThisWeek(); }
 function weekNumOf(dateStr) {
   const start = new Date(PLAN.examStart + 'T00:00:00');
   const d = new Date(dateStr + 'T00:00:00');
@@ -5030,7 +5041,9 @@ function renderSleepChart() {
 // ================= Report =================
 function showReport(kind) {
   const refDays = kind === 'week' ? 7 : 30;
-  const from = new Date(); from.setDate(from.getDate() - (refDays - 1)); from.setHours(0,0,0,0);
+  const from = new Date();
+  if (kind === 'week') { from.setTime(mondayOfThisWeek().getTime()); }
+  else { from.setDate(from.getDate() - (refDays - 1)); from.setHours(0,0,0,0); }
   const recs = (state.studyRecords || []).filter(r => new Date(r.date) >= from);
   const totalStudy = recs.reduce((a,b) => a + (b.minutes || 0), 0);
   const daysStudied = new Set(recs.map(r => r.date)).size;
@@ -5058,7 +5071,7 @@ function showReport(kind) {
   }).join('');
   document.getElementById('report-title').textContent = kind === 'week' ? '📊 本周学习报告' : '📈 本月学习报告';
   document.getElementById('report-content').innerHTML = `
-    <div class="card-sub">近 ${refDays} 天（${dateStr(from)} ~ 今）</div>
+    <div class="card-sub">${kind === 'week' ? '本周' : '近 ' + refDays + ' 天'}（${dateStr(from)} ~ 今）</div>
     <div class="summary-grid">
       <div class="stat-card"><div class="stat-num">${fmtMin(totalStudy)}</div><div class="stat-label">总学习时长</div></div>
       <div class="stat-card"><div class="stat-num">${fmtMin(avg)}</div><div class="stat-label">日均</div></div>
