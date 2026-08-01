@@ -1026,20 +1026,20 @@ const DEFAULT_HOBBY_ITEMS = [
 const subjectConfig = {
   math: { name: '数学二', icon: '📐', tabs: [
     { key: 'must', name: '必背公式/知识点' },
-    { key: 'mistake', name: '错题本' },
-    { key: 'key', name: '重点内容' }
+    { key: 'key', name: '重点内容' },
+    { key: 'mistake', name: '错题本' }
   ]},
   cs408: { name: '计算机408', icon: '💻', tabs: [
     { key: 'must', name: '必背知识' },
-    { key: 'mistake', name: '错题' },
     { key: 'key', name: '重点知识' },
-    { key: 'code', name: '重点代码' }
+    { key: 'code', name: '重点代码' },
+    { key: 'mistake', name: '错题' }
   ]},
   english: { name: '英语二', icon: '🔤', tabs: [
     { key: 'words', name: '易错单词' },
-    { key: 'mistake', name: '错题本' },
     { key: 'essay', name: '作文积累' },
-    { key: 'collocation', name: '搭配积累' }
+    { key: 'collocation', name: '搭配积累' },
+    { key: 'mistake', name: '错题本' }
   ]},
   politics: { name: '政治', icon: '🗳️', tabs: [
     { key: 'mistake', name: '错题本' },
@@ -1803,16 +1803,32 @@ function renderSubjectTab() {
 
   const items = state.examData[sub][tab];
   const isMistake = tab === 'mistake';
+  const tabName = (subjectConfig[sub].tabs.find(t => t.key === tab) || {}).name || '';
+  const titleText = isMistake ? '添加错题' : `添加${tabName}`;
+  const dropText = isMistake ? '把题目截图/PDF拖到这里自动添加' : '把截图/PDF拖到这里自动添加';
   let html = `<div class="card" id="exam-add-card">
-    <div class="card-title">${isMistake ? '添加错题' : '添加知识点'}</div>
+    <div class="card-title">${titleText}</div>
     <div class="form-row"><input class="input" id="exam-title" placeholder="简介 / 标题"></div>
     <div class="form-row"><textarea class="textarea" id="exam-desc" placeholder="描述 / 笔记"></textarea></div>
     <div class="form-row"><input type="file" class="input" id="exam-img" accept="image/*,application/pdf"></div>
-    <label class="dropzone" id="exam-drop">📎 ${isMistake ? '把题目截图/PDF拖到这里自动添加' : '把知识点截图/PDF拖到这里自动添加'}</label>`;
-  html += `<div class="form-row"><textarea class="textarea" id="exam-answer" placeholder="答案 / 解析文字（可选，默认隐藏）"></textarea></div>
-    <div class="form-row"><input type="file" class="input" id="exam-answer-img" accept="image/*,application/pdf"></div>
-    <label class="dropzone" id="exam-answer-drop">📎 把答案截图/PDF拖到这里自动上传</label>
-    <div class="form-row"><label><input type="checkbox" id="exam-hide" checked> 默认隐藏答案</label></div>`;
+    <label class="dropzone" id="exam-drop">📎 ${dropText}</label>`;
+  if (isMistake) {
+    // 知识点（位于题目与答案之间，默认隐藏、可点击展开）
+    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)">
+      <div style="font-weight:600;margin-bottom:4px">📌 知识点（默认隐藏，可点击展开）</div>
+      <div class="form-row"><textarea class="textarea" id="exam-knowledge" placeholder="知识点文字（可选，默认隐藏）"></textarea></div>
+      <div class="form-row"><input type="file" class="input" id="exam-knowledge-img" accept="image/*,application/pdf"></div>
+      <label class="dropzone" id="exam-knowledge-drop">📎 把知识点截图/PDF拖到这里自动上传</label>
+    </div>`;
+    // 答案
+    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)">
+      <div style="font-weight:600;margin-bottom:4px">✅ 答案（默认隐藏，可点击展开）</div>
+      <div class="form-row"><textarea class="textarea" id="exam-answer" placeholder="答案 / 解析文字（可选，默认隐藏）"></textarea></div>
+      <div class="form-row"><input type="file" class="input" id="exam-answer-img" accept="image/*,application/pdf"></div>
+      <label class="dropzone" id="exam-answer-drop">📎 把答案截图/PDF拖到这里自动上传</label>
+      <div class="form-row"><label><input type="checkbox" id="exam-hide" checked> 默认隐藏答案</label></div>
+    </div>`;
+  }
   html += `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="addExamItem()">添加</button></div>`;
 
   if (items.length === 0) html += `<div class="empty">暂无内容，上方添加或拖入截图</div>`;
@@ -1871,30 +1887,45 @@ function renderExamItemHTML(item, idx, isMistake, sub, tab) {
   const pdfSrc = escapeAttr(mediaSrc(item.pdf));
   const ansImgSrc = escapeAttr(mediaSrc(item.answerImage));
   const ansPdfSrc = escapeAttr(mediaSrc(item.ansPdf));
+  const kImgSrc = escapeAttr(mediaSrc(item.kimage));
+  const kPdfSrc = escapeAttr(mediaSrc(item.kpdf));
   const img = item.image ? `<img class="item-img" src="${imgSrc}" onclick="openLightbox('${imgSrc}')" draggable="false">` : '';
   const pdf = item.pdf ? `<a href="${pdfSrc}" target="_blank" class="item-pdf">📄 打开PDF</a>` : '';
   const ansPdf = item.ansPdf ? `<a href="${ansPdfSrc}" target="_blank" class="item-pdf">📄 打开答案PDF</a>` : '';
-  const showAnswer = isMistake || (tab && tab !== 'mistake');
+  const kPdf = item.kpdf ? `<a href="${kPdfSrc}" target="_blank" class="item-pdf">📄 打开知识点PDF</a>` : '';
+  const showAnswer = isMistake;                          // 仅错题有答案
   const hasAnswer = item.answer || item.answerImage || item.ansPdf;
-  const answer = (showAnswer && hasAnswer) ? `
-    <div class="exam-answer ${item.hidden ? 'hidden' : ''}" id="ans-${item.id}">
+  const content = `${img}${pdf}<div class="item-desc">${escapeHtml(item.desc || '')}</div>`;
+  // 知识点（位于题目与答案之间，默认隐藏、可点击展开）
+  const hasKp = item.kdesc || item.kimage || item.kpdf;
+  const kp = (isMistake && hasKp && !item.khidden) ? `
+    <div class="exam-kp" id="kp-${item.id}">
+      <div style="font-weight:600;margin:8px 0 4px">📌 知识点：</div>
+      ${item.kdesc ? `<div>${escapeHtml(item.kdesc)}</div>` : ''}
+      ${item.kimage ? `<img class="item-img" src="${kImgSrc}" onclick="openLightbox('${kImgSrc}')">` : ''}
+      ${kPdf}
+    </div>` : '';
+  const answer = (showAnswer && hasAnswer && !item.hidden) ? `
+    <div class="exam-answer" id="ans-${item.id}">
       <div style="font-weight:600;margin:8px 0 4px">答案：</div>
       ${item.answer ? `<div>${escapeHtml(item.answer)}</div>` : ''}
       ${item.answerImage ? `<img class="item-img" src="${ansImgSrc}" onclick="openLightbox('${ansImgSrc}')">` : ''}
       ${ansPdf}
     </div>` : '';
+  const kpBtn = (isMistake && hasKp) ? `<button class="btn btn-small btn-secondary" onclick="toggleKp('${item.id}')">${item.khidden ? '显示知识点' : '隐藏知识点'}</button>` : '';
+  const ansBtn = (showAnswer && hasAnswer) ? `<button class="btn btn-small btn-secondary" onclick="toggleAnswer('${item.id}')">${item.hidden ? '显示答案' : '隐藏答案'}</button>` : '';
   return `
     <div class="item-card" draggable="true" data-idx="${idx}" data-id="${item.id}">
       <div class="item-header">
         <div class="item-title">${escapeHtml(item.title || (isMistake ? '错题' : '未命名'))}</div>
         <div style="display:flex;gap:6px">
-          ${(showAnswer && hasAnswer) ? `<button class="btn btn-small btn-secondary" onclick="toggleAnswer('${item.id}')">${item.hidden ? '显示答案' : '隐藏答案'}</button>` : ''}
+          ${ansBtn}
+          ${kpBtn}
           <button class="btn btn-small btn-danger" onclick="deleteExamItem('${item.id}')">删除</button>
         </div>
       </div>
-      <div class="item-desc">${escapeHtml(item.desc || '')}</div>
-      ${img}
-      ${pdf}
+      ${content}
+      ${kp}
       ${answer}
       <div class="item-actions">
         <button class="btn btn-small btn-secondary" onclick="mergeExamItem('${item.id}')">合并到上一条</button>
@@ -1959,18 +1990,31 @@ function bindExamDrop(sub, tab) {
     ansDrop.addEventListener('drop', e => {
       e.preventDefault(); e.stopPropagation(); ansDrop.classList.remove('drag-over');
       const file = pickDroppedFile(e, ['image', 'pdf']);
-      if (file) quickAddExamImage(sub, tab, file, true);
+      if (file) quickAddExamImage(sub, tab, file, 'answer');
+      else toast('未识别到图片/文件，请点击「选择文件」或改用文件框');
+    });
+  }
+  const kpDrop = document.getElementById('exam-knowledge-drop');
+  if (kpDrop) {
+    const onKpOver = e => { e.preventDefault(); e.stopPropagation(); kpDrop.classList.add('drag-over'); };
+    kpDrop.addEventListener('dragenter', onKpOver);
+    kpDrop.addEventListener('dragover', onKpOver);
+    kpDrop.addEventListener('dragleave', () => kpDrop.classList.remove('drag-over'));
+    kpDrop.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation(); kpDrop.classList.remove('drag-over');
+      const file = pickDroppedFile(e, ['image', 'pdf']);
+      if (file) quickAddExamImage(sub, tab, file, 'kp');
       else toast('未识别到图片/文件，请点击「选择文件」或改用文件框');
     });
   }
 }
-function quickAddExamImage(sub, tab, file, isAnswer) {
+function quickAddExamImage(sub, tab, file, slot) {
   const isPdf = file.type === 'application/pdf';
   uploadMedia(file).then((ref) => {
     const isMistake = tab === 'mistake';
-    const item = { id: Date.now().toString(), title: '', desc: '', image: '', answer: '', answerImage: '', hidden: isMistake, pdf: '' };
-    if (isMistake || tab !== 'mistake') { item.reviewDate = todayStr(); item.reviewAfter = 1; item.reviewCount = 0; }
-    if (isAnswer) { if (isPdf) item.pdf = ref; else item.answerImage = ref; }
+    const item = { id: Date.now().toString(), title: '', desc: '', image: '', answer: '', answerImage: '', hidden: isMistake, pdf: '', ansPdf: '', kdesc: '', kimage: '', kpdf: '', khidden: isMistake, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 };
+    if (slot === 'answer') { if (isPdf) item.ansPdf = ref; else item.answerImage = ref; }
+    else if (slot === 'kp') { if (isPdf) item.kpdf = ref; else item.kimage = ref; }
     else { if (isPdf) item.pdf = ref; else item.image = ref; }
     state.examData[sub][tab].push(item);
     saveState(); schedulePush(); renderExam();
@@ -1979,31 +2023,34 @@ function quickAddExamImage(sub, tab, file, isAnswer) {
 
 function addExamItem() {
   const sub = state.exam.subject, tab = state.exam.tab;
+  const isMistake = tab === 'mistake';
   const title = document.getElementById('exam-title').value.trim();
   const desc = document.getElementById('exam-desc').value.trim();
   const answer = document.getElementById('exam-answer')?.value.trim() || '';
-  const hidden = document.getElementById('exam-hide')?.checked || false;
+  const hidden = isMistake ? (document.getElementById('exam-hide')?.checked || false) : false;
+  const kdesc = document.getElementById('exam-knowledge')?.value.trim() || '';
   const file = document.getElementById('exam-img').files[0];
   const ansFile = document.getElementById('exam-answer-img')?.files[0];
-  const save = (image, answerImage, pdf, ansPdf) => {
-    const isMistake = tab === 'mistake';
-    const item = { id: Date.now().toString(), title, desc, image, answer, answerImage, hidden, pdf: pdf || '', ansPdf: ansPdf || '' };
-    // 错题与知识点都进记忆曲线（进入错题复习计划 / 背诵清单）
+  const kpFile = document.getElementById('exam-knowledge-img')?.files[0];
+  const save = (image, answerImage, pdf, ansPdf, kimage, kpdf) => {
+    const item = { id: Date.now().toString(), title, desc, image, answer, answerImage, hidden, pdf: pdf || '', ansPdf: ansPdf || '', kdesc, kimage: kimage || '', kpdf: kpdf || '', khidden: isMistake };
     item.reviewDate = todayStr(); item.reviewAfter = 1; item.reviewCount = 0;
     state.examData[sub][tab].push(item);
     saveState(); schedulePush(); renderExam();
-    ['exam-title','exam-desc','exam-answer'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    ['exam-img','exam-answer-img'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['exam-title','exam-desc','exam-answer','exam-knowledge'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['exam-img','exam-answer-img','exam-knowledge-img'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   };
-  // 主图/文件
   const upMain = file ? uploadMedia(file) : Promise.resolve('');
   const upAns = ansFile ? uploadMedia(ansFile) : Promise.resolve('');
-  Promise.all([upMain, upAns]).then(([mainRef, ansRef]) => {
+  const upKp = kpFile ? uploadMedia(kpFile) : Promise.resolve('');
+  Promise.all([upMain, upAns, upKp]).then(([mainRef, ansRef, kpRef]) => {
     const mainPdf = (file && file.type === 'application/pdf') ? mainRef : '';
     const mainImg = (file && file.type !== 'application/pdf') ? mainRef : '';
     const ansPdf = (ansFile && ansFile.type === 'application/pdf') ? ansRef : '';
     const ansImg = (ansFile && ansFile.type !== 'application/pdf') ? ansRef : '';
-    save(mainImg, ansImg, mainPdf, ansPdf);
+    const kPdf = (kpFile && kpFile.type === 'application/pdf') ? kpRef : '';
+    const kImg = (kpFile && kpFile.type !== 'application/pdf') ? kpRef : '';
+    save(mainImg, ansImg, mainPdf, ansPdf, kImg, kPdf);
   });
 }
 
@@ -2018,6 +2065,11 @@ function toggleAnswer(id) {
   const sub = state.exam.subject, tab = state.exam.tab;
   const item = state.examData[sub][tab].find(x => x.id === id);
   if (item) { item.hidden = !item.hidden; saveState(); schedulePush(); renderExam(); }
+}
+function toggleKp(id) {
+  const sub = state.exam.subject, tab = state.exam.tab;
+  const item = state.examData[sub][tab].find(x => x.id === id);
+  if (item) { item.khidden = !item.khidden; saveState(); schedulePush(); renderExam(); }
 }
 function moveExamItem(id, dir) {
   const sub = state.exam.subject, tab = state.exam.tab;
@@ -2043,6 +2095,9 @@ function mergeExamItem(id) {
   if (cur.answer) prev.answer = (prev.answer || '') + '\n\n' + cur.answer;
   if (cur.answerImage) prev.answerImage = cur.answerImage;
   if (cur.ansPdf) prev.ansPdf = cur.ansPdf;
+  if (cur.kdesc) prev.kdesc = (prev.kdesc || '') + '\n\n' + cur.kdesc;
+  if (cur.kimage) prev.kimage = cur.kimage;
+  if (cur.kpdf) prev.kpdf = cur.kpdf;
   arr.splice(idx, 1);
   saveState(); schedulePush(); renderExam();
 }
@@ -2123,15 +2178,25 @@ function dueRecite() {
 function allKnowledge() {
   const out = [];
   ['math','cs408','english','politics'].forEach(sub => {
-    (subjectConfig[sub].tabs || []).filter(t => t.key !== 'mistake').forEach(t => {
-      (state.examData[sub][t.key] || []).forEach(item => out.push({ sub, tab: t.key, item }));
-    });
+    (state.examData[sub]['knowledge'] || []).forEach(item => out.push({ sub, tab: 'knowledge', item }));
   });
   return out;
 }
 function dueKnowledge() {
   const t = todayStr();
   return allKnowledge().filter(m => !m.item.reviewDate || m.item.reviewDate <= t);
+}
+// 背诵清单：数学二·必背 / 计算机408·必背 / 政治·必背，按记忆曲线汇入
+function allMust() {
+  const out = [];
+  ['math','cs408','politics'].forEach(sub => {
+    (state.examData[sub]['must'] || []).forEach(item => out.push({ sub, tab: 'must', item }));
+  });
+  return out;
+}
+function dueMust() {
+  const t = todayStr();
+  return allMust().filter(m => !m.item.reviewDate || m.item.reviewDate <= t);
 }
 function addRecite(sub, title) {
   if (!title || !title.trim()) return;
@@ -2145,7 +2210,10 @@ function addReciteMedia(sub, media) {
   state.recite[sub].push(item);
   saveState(); schedulePush(); renderExam();
 }
-function markRecited(sub, id, tab) { openReviewRating(tab ? 'knowledge' : 'recite', sub, id, tab); }
+function markRecited(sub, id, tab) {
+  const type = tab === 'must' ? 'must' : (tab ? 'knowledge' : 'recite');
+  openReviewRating(type, sub, id, tab);
+}
 function addReciteFromCard() {
   const sub = document.getElementById('recite-sub').value;
   const title = (document.getElementById('recite-title').value || '').trim();
@@ -2187,6 +2255,7 @@ function confirmReviewRating(q) {
   if (r.type === 'mistake') it = (state.examData[r.sub].mistake || []).find(x => x.id === r.id);
   else if (r.type === 'recite') it = (state.recite[r.sub] || []).find(x => x.id === r.id);
   else if (r.type === 'knowledge') it = (state.examData[r.sub][r.tab] || []).find(x => x.id === r.id);
+  else if (r.type === 'must') it = (state.examData[r.sub][r.tab] || []).find(x => x.id === r.id);
   if (it) { applySM2(it, q); saveState(); schedulePush(); }
   closeReviewRating();
   if (state.view === 'exam') renderExam();
@@ -2215,20 +2284,20 @@ function reciteFile(input) {
   uploadMedia(file).then(data => { addReciteMedia(sub, isPdf ? { pdf: data, title: 'PDF背诵' } : { image: data, title: '图片背诵' }); input.value = ''; });
 }
 function renderRecitePlanHtml() {
-  const due = [...dueRecite().map(r => ({ ...r, kind: 'recite' })), ...dueKnowledge().map(r => ({ ...r, kind: 'knowledge' }))];
-  const total = allRecite().length + allKnowledge().length;
+  const due = [...dueRecite().map(r => ({ ...r, kind: 'recite' })), ...dueMust().map(r => ({ ...r, kind: 'must' })), ...dueKnowledge().map(r => ({ ...r, kind: 'knowledge' }))];
+  const total = allRecite().length + allMust().length + allKnowledge().length;
   let rows = due.map(({sub, tab, item, kind}) => {
     const cfg = subjectConfig[sub];
     const overdue = item.reviewDate && item.reviewDate < todayStr();
     const tag = overdue ? `<span class="status-bad" style="font-size:11px">逾期</span>` : `<span class="status-warn" style="font-size:11px">待背</span>`;
     const efTag = item.ef ? `<span class="category-tag" style="font-size:10px;opacity:.7">EF ${item.ef.toFixed(2)}</span>` : '';
-    const tabName = (kind === 'knowledge' && tab) ? ((subjectConfig[sub].tabs.find(t => t.key === tab) || {}).name || '') : '';
+    const tabName = ((kind === 'knowledge' || kind === 'must') && tab) ? ((subjectConfig[sub].tabs.find(t => t.key === tab) || {}).name || '') : '';
     const nameHtml = `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="jumpToItem('${sub}','${tab||''}')" title="点击跳转到对应内容">${cfg.icon} <b>${escapeHtml(item.title)}</b> ${tabName ? `<span style="font-size:10px;color:var(--text-secondary)">· ${escapeHtml(tabName)}</span>` : ''} ${tag} ${efTag}</span>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
         ${mediaThumbHtml(item)}
         ${nameHtml}
         <button class="btn btn-small btn-primary" onclick="markRecited('${sub}','${item.id}','${tab||''}')">✓ 已背</button>
-        <button class="btn btn-small btn-danger" onclick="${kind === 'recite' ? `deleteRecite('${sub}','${item.id}')` : `deleteKnowledge('${sub}','${tab}','${item.id}')`}" title="删除">🗑</button>
+        <button class="btn btn-small btn-danger" onclick="${kind === 'recite' ? `deleteRecite('${sub}','${item.id}')` : (kind === 'must' ? `deleteMust('${sub}','${tab}','${item.id}')` : `deleteKnowledge('${sub}','${tab}','${item.id}')`)}" title="删除">🗑</button>
       </div>`;
   }).join('');
   if (!rows) rows = `<div class="empty">🎉 暂无待背内容，保持住！</div>`;
@@ -2258,6 +2327,12 @@ function deleteKnowledge(sub, tab, id) {
   saveState(); schedulePush(); renderExam();
   if (removed) purgeMediaRefs(collectMediaRefs(removed));
 }
+function deleteMust(sub, tab, id) {
+  const removed = (state.examData[sub][tab] || []).find(x => x.id === id);
+  state.examData[sub][tab] = (state.examData[sub][tab] || []).filter(x => x.id !== id);
+  saveState(); schedulePush(); renderExam();
+  if (removed) purgeMediaRefs(collectMediaRefs(removed));
+}
 function mistakeDrop(e) {
   e.preventDefault();
   const file = pickDroppedFile(e, ['image', 'pdf']);
@@ -2265,7 +2340,7 @@ function mistakeDrop(e) {
   const subj = (document.getElementById('mistake-sub') || {}).value || 'math';
   const isPdf = file.type === 'application/pdf';
   uploadMedia(file).then(data => {
-    state.examData[subj].mistake.push({ id: Date.now().toString(), title: isPdf ? 'PDF错题' : '图片错题', desc: '', image: isPdf ? '' : data, pdf: isPdf ? data : '', answer: '', answerImage: '', hidden: true, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
+    state.examData[subj].mistake.push({ id: Date.now().toString(), title: isPdf ? 'PDF错题' : '图片错题', desc: '', image: isPdf ? '' : data, pdf: isPdf ? data : '', answer: '', answerImage: '', ansPdf: '', hidden: true, kdesc: '', kimage: '', kpdf: '', khidden: true, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
     saveState(); schedulePush(); renderExam();
   });
 }
@@ -2275,7 +2350,7 @@ function mistakeFile(input) {
   if (!file) return;
   const isPdf = file.type === 'application/pdf';
   uploadMedia(file).then(data => {
-    state.examData[subj].mistake.push({ id: Date.now().toString(), title: isPdf ? 'PDF错题' : '图片错题', desc: '', image: isPdf ? '' : data, pdf: isPdf ? data : '', answer: '', answerImage: '', hidden: true, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
+    state.examData[subj].mistake.push({ id: Date.now().toString(), title: isPdf ? 'PDF错题' : '图片错题', desc: '', image: isPdf ? '' : data, pdf: isPdf ? data : '', answer: '', answerImage: '', ansPdf: '', hidden: true, kdesc: '', kimage: '', kpdf: '', khidden: true, reviewDate: todayStr(), reviewAfter: 1, reviewCount: 0 });
     saveState(); schedulePush(); renderExam();
     input.value = '';
   });
@@ -5344,7 +5419,7 @@ async function purgeMediaRefs(refs) {
 }
 function collectMediaRefs(obj) {
   if (!obj || typeof obj !== 'object') return [];
-  return ['image','video','pdf','answerImage','ansPdf'].map(k => obj[k]).filter(mediaIsRef);
+  return ['image','video','pdf','answerImage','ansPdf','kimage','kpdf'].map(k => obj[k]).filter(mediaIsRef);
 }
 function escapeHtml(str) { return String(str).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function escapeAttr(str) { return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
